@@ -1,0 +1,45 @@
+# Bitbucket Pipelines — equivalente ao antigo .github/workflows/ci.yml
+# (GitHub Actions não roda no Bitbucket). Lint + testes + build em PRs e na main,
+# e deploy de produção na Vercel quando a main recebe push.
+#
+# Requer "Repository variables" (Repository settings -> Pipelines -> Repository variables):
+#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID   (para o deploy)
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_SENTRY_DSN (opcionais p/ o build)
+#
+# O app vive em af_final/, por isso cada passo faz "cd af_final".
+
+image: node:20
+
+definitions:
+  caches:
+    npmcache: af_final/node_modules
+  steps:
+    - step: &lint-test-build
+        name: Lint, testes e build
+        caches:
+          - npmcache
+        script:
+          - cd af_final
+          - npm ci
+          - 'printf "VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\nVITE_SENTRY_DSN=%s\nVITE_APP_NAME=Assistente Financeiro\n" "$VITE_SUPABASE_URL" "$VITE_SUPABASE_ANON_KEY" "$VITE_SENTRY_DSN" > .env'
+          - npm run lint
+          - npm run test
+          - npm run build
+
+pipelines:
+  pull-requests:
+    '**':
+      - step: *lint-test-build
+  branches:
+    main:
+      - step: *lint-test-build
+      - step:
+          name: Deploy de produção (Vercel)
+          deployment: production
+          trigger: manual
+          script:
+            - cd af_final
+            - npm install --global vercel@latest
+            - vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+            - vercel build --prod --token="$VERCEL_TOKEN"
+            - vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
