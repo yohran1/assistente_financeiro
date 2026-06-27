@@ -6,6 +6,9 @@
 - The application lives in `af_final/` (React + Vite + Tailwind frontend, Supabase backend). Run all `npm`/`supabase` commands from `af_final/`.
 - Standard scripts are in `af_final/package.json`: `npm run dev` (Vite on port 3000), `npm run build`, `npm run lint`, `npm run test` (Vitest), `npm run test:e2e` (Playwright). Lint/test/build need no backend.
 
+### Cloud Agent environment definition
+The cloud environment is defined in-repo via `.cursor/environment.json` (used because the Bitbucket workspace snapshot-save flow may be unavailable). It builds `.cursor/Dockerfile` (Node 22 + Docker + Supabase CLI), runs `install` (`npm install` + creates `af_final/.env` if missing), then `start` (launches `dockerd` and `supabase start`), and a `dev` terminal runs `npm run dev`. If a fresh VM is provisioned from the default image instead (no Docker), follow the manual steps below.
+
 ### Backend = local Supabase (requires Docker)
 The app cannot do anything beyond rendering auth pages without a Supabase backend (auth + Postgres + RLS). Docker and the Supabase CLI are preinstalled in the VM image. They are NOT started automatically — start them each session:
 

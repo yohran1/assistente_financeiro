@@ -1,0 +1,16 @@
+{
+  "user": "ubuntu",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "cd af_final && npm install && { [ -f .env ] || printf 'VITE_SUPABASE_URL=http://127.0.0.1:54321\\nVITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0\\nVITE_APP_NAME=Assistente Financeiro\\n' > .env; }",
+  "start": "sudo dockerd > /tmp/dockerd.log 2>&1 & for i in $(seq 1 30); do sudo docker info > /dev/null 2>&1 && break; sleep 1; done; sudo chmod 666 /var/run/docker.sock; cd af_final && supabase start",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "cd af_final && npm run dev",
+      "description": "Vite dev server on http://localhost:3000"
+    }
+  ]
+}
