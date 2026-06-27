@@ -60,7 +60,7 @@ async function callGemini(messages: any[], context: any): Promise<string> {
     }))
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -102,7 +102,7 @@ async function callGroq(messages: any[], context: any): Promise<string> {
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "llama3-8b-8192",
+      model: "llama-3.1-8b-instant",
       messages: allMessages,
       max_tokens: 1024,
       temperature: 0.7,
