@@ -1,0 +1,52 @@
+# Dependências
+node_modules/
+dist/
+dist-ssr/
+build/
+.cache/
+
+# Variáveis de ambiente — NUNCA commitar
+.env
+.env.local
+.env.*.local
+agents/.env.agents
+
+# Supabase local
+.supabase/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Testes
+playwright-report/
+test-results/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Build
+*.tsbuildinfo
+.eslintcache
+
+# Temp
+.refact/

@@ -1,0 +1,106 @@
+name: CI — Testes e Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Job 1: Testes unitários ──────────────────────────────────
+  unit-tests:
+    name: Vitest — Testes unitários
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Criar .env para testes
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+          echo "VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}" >> .env
+          echo "VITE_APP_NAME=Assistente Financeiro" >> .env
+
+      - name: Rodar testes Vitest
+        run: npm run test
+
+      - name: Build de produção
+        run: npm run build
+
+  # ── Job 2: Testes E2E ────────────────────────────────────────
+  e2e-tests:
+    name: Playwright — Testes E2E
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Instalar Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Criar .env
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+          echo "VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}" >> .env
+          echo "VITE_APP_NAME=Assistente Financeiro" >> .env
+
+      - name: Rodar testes E2E
+        run: npx playwright test
+        env:
+          CI: true
+
+      - name: Upload relatório Playwright
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ── Job 3: Deploy automático (apenas na main) ─────────────────
+  deploy:
+    name: Deploy — Vercel
+    runs-on: ubuntu-latest
+    needs: [unit-tests, e2e-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via Vercel CLI
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+
+      - name: Notificar Sentry do release
+        run: |
+          curl -sL https://sentry.io/api/0/organizations/${{ secrets.SENTRY_ORG }}/releases/ \
+            -H "Authorization: Bearer ${{ secrets.SENTRY_AUTH_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"version\": \"${GITHUB_SHA}\", \"projects\": [\"${{ secrets.SENTRY_PROJECT }}\"]}"
+        env:
+          GITHUB_SHA: ${{ github.sha }}

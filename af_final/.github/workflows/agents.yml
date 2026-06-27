@@ -1,0 +1,46 @@
+name: Agentes IA — Health Check
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # A cada 6 horas
+  workflow_dispatch:          # Permite rodar manualmente
+
+jobs:
+  health-check:
+    name: Verificar saúde dos agentes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências dos agentes
+        run: pip install upstash-redis python-dotenv
+
+      - name: Verificar heartbeats no Redis
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        run: |
+          python3 -c "
+          import os, urllib.request, json
+          url = os.environ['UPSTASH_REDIS_REST_URL']
+          token = os.environ['UPSTASH_REDIS_REST_TOKEN']
+          agents = ['pm','orchestrator','frontend','backend','tester','security','devops']
+          for a in agents:
+              try:
+                  req = urllib.request.Request(
+                      f'{url}/get/hb:{a}',
+                      headers={'Authorization': f'Bearer {token}'}
+                  )
+                  with urllib.request.urlopen(req, timeout=5) as r:
+                      data = json.loads(r.read())
+                  status = '🟢 ativo' if data.get('result') == '1' else '⚪ idle'
+              except:
+                  status = '⚫ offline'
+              print(f'{a}: {status}')
+          "
