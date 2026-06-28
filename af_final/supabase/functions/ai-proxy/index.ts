@@ -46,11 +46,21 @@ function checkRateLimit(userId: string): boolean {
   return true
 }
 
-// ── Gemini ───────────────────────────────────────────────────
-async function callGemini(messages: any[], context: any): Promise<string> {
-  const apiKey = Deno.env.get("GEMINI_API_KEY")
-  if (!apiKey) throw new Error("Gemini não está configurado. Defina GEMINI_API_KEY nas secrets do Supabase.")
+// Lê uma lista de chaves de um provedor. Aceita "<NOME>S" (várias, separadas
+// por vírgula) com fallback para "<NOME>" (uma só). Permite failover entre
+// chaves reservas quando uma estoura o limite (429) ou falha.
+function getApiKeys(baseName: string): string[] {
+  const multi = Deno.env.get(`${baseName}S`) || ""
+  const single = Deno.env.get(baseName) || ""
+  const all = `${multi},${single}`
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean)
+  return Array.from(new Set(all))
+}
 
+// ── Gemini ───────────────────────────────────────────────────
+async function callGemini(messages: any[], context: any, apiKey: string): Promise<string> {
   const systemPrompt = buildSystemPrompt(context)
   const contents = messages
     .filter(m => m.role !== "system")
@@ -85,10 +95,7 @@ async function callGemini(messages: any[], context: any): Promise<string> {
 }
 
 // ── Groq (fallback) ──────────────────────────────────────────
-async function callGroq(messages: any[], context: any): Promise<string> {
-  const apiKey = Deno.env.get("GROQ_API_KEY")
-  if (!apiKey) throw new Error("Groq não está configurado. Defina GROQ_API_KEY nas secrets do Supabase.")
-
+async function callGroq(messages: any[], context: any, apiKey: string): Promise<string> {
   const systemPrompt = buildSystemPrompt(context)
   const allMessages  = [
     { role: "system", content: systemPrompt },
@@ -137,29 +144,30 @@ INSTRUÇÕES:
 - Use emojis moderadamente para tornar a conversa mais amigável`
 }
 
-// ── Router com fallback automático ───────────────────────────
+// ── Router com failover automático entre múltiplas chaves ────
+// Tenta cada chave do Gemini em ordem; se todas falharem (ex.: cota 429),
+// tenta cada chave do Groq. Assim o sistema não trava quando uma IA atinge
+// o limite — basta cadastrar chaves reservas em GEMINI_API_KEYS / GROQ_API_KEYS.
 async function routeAI(messages: any[], context: any): Promise<string> {
-  const geminiKey = Deno.env.get("GEMINI_API_KEY")
-  const groqKey = Deno.env.get("GROQ_API_KEY")
+  const geminiKeys = getApiKeys("GEMINI_API_KEY")
+  const groqKeys = getApiKeys("GROQ_API_KEY")
 
-  if (!geminiKey && !groqKey) {
-    throw new Error("Nenhuma chave de IA configurada. Defina GEMINI_API_KEY ou GROQ_API_KEY nas secrets do Supabase.")
+  if (geminiKeys.length === 0 && groqKeys.length === 0) {
+    throw new Error("Nenhuma chave de IA configurada. Defina GEMINI_API_KEYS ou GROQ_API_KEYS nas secrets do Supabase.")
   }
 
-  if (geminiKey) {
-    try {
-      return await callGemini(messages, context)
-    } catch (geminiError) {
-      console.warn("Gemini falhou, tentando Groq:", (geminiError as Error).message)
-    }
-  }
+  const providers: Array<{ name: string; keys: string[]; call: (k: string) => Promise<string> }> = [
+    { name: "Gemini", keys: geminiKeys, call: (k) => callGemini(messages, context, k) },
+    { name: "Groq", keys: groqKeys, call: (k) => callGroq(messages, context, k) },
+  ]
 
-  if (groqKey) {
-    try {
-      return await callGroq(messages, context)
-    } catch (groqError) {
-      console.error("Groq também falhou:", (groqError as Error).message)
-      throw new Error("Assistente temporariamente indisponível")
+  for (const provider of providers) {
+    for (let i = 0; i < provider.keys.length; i++) {
+      try {
+        return await provider.call(provider.keys[i])
+      } catch (err) {
+        console.warn(`${provider.name} chave #${i + 1} falhou: ${(err as Error).message}`)
+      }
     }
   }
 
