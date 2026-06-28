@@ -18,7 +18,7 @@ function parseNumeric(value) {
 export async function getProfile() {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, name, account_balance, credit_card_balance, credit_card_limit, updated_at')
+    .select('id, name, account_balance, credit_card_balance, credit_card_limit, credit_card_closing_day, credit_card_due_day, updated_at')
     .single()
   if (error) throw error
 
@@ -46,7 +46,14 @@ export async function updateAccountBalance(value) {
   return data
 }
 
-export async function updateCreditCard({ balance, limit }) {
+function parseDayOfMonth(value, label) {
+  if (value === undefined || value === null || value === '') return undefined
+  const day = parseInt(value, 10)
+  if (isNaN(day) || day < 1 || day > 31) throw new Error(`${label} inválido (1-31)`)
+  return day
+}
+
+export async function updateCreditCard({ balance, limit, closingDay, dueDay }) {
   const updates = {}
   if (balance !== undefined) {
     const v = parseFloat(balance)
@@ -58,6 +65,10 @@ export async function updateCreditCard({ balance, limit }) {
     if (isNaN(v)) throw new Error('Limite inválido')
     updates.credit_card_limit = v
   }
+  const closing = parseDayOfMonth(closingDay, 'Dia de fechamento')
+  if (closing !== undefined) updates.credit_card_closing_day = closing
+  const due = parseDayOfMonth(dueDay, 'Dia de vencimento')
+  if (due !== undefined) updates.credit_card_due_day = due
   updates.updated_at = new Date().toISOString()
 
   const userId = await getCurrentUserId()

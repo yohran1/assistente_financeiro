@@ -79,6 +79,8 @@ export function useFinances() {
       ...prev,
       credit_card_balance: updated.credit_card_balance,
       credit_card_limit: updated.credit_card_limit,
+      credit_card_closing_day: updated.credit_card_closing_day,
+      credit_card_due_day: updated.credit_card_due_day,
     }))
     return updated
   }
