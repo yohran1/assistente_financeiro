@@ -36,13 +36,15 @@ function BalanceCard({ label, value, icon: Icon, onEdit, color = 'brand' }) {
         <div className={`w-9 h-9 rounded-2xl flex items-center justify-center ${p.icon}`}>
           <Icon size={18} aria-hidden="true" />
         </div>
-        <button
-          onClick={onEdit}
-          aria-label={`Editar ${label}`}
-          className="p-2 -mt-1 -mr-1 rounded-xl hover:bg-white/10 text-white/25 hover:text-white/60 transition-all touch-press"
-        >
-          <Pencil size={13} />
-        </button>
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            aria-label={`Editar ${label}`}
+            className="p-2 -mt-1 -mr-1 rounded-xl hover:bg-white/10 text-white/25 hover:text-white/60 transition-all touch-press"
+          >
+            <Pencil size={13} />
+          </button>
+        )}
       </div>
       <p className="text-white/40 text-xs font-medium uppercase tracking-wider mb-1">{label}</p>
       <p className="text-xl sm:text-2xl font-semibold text-white mono-number">{fmt(value)}</p>
@@ -78,8 +80,9 @@ export default function Dashboard() {
   const [newCardLimit,   setNewCardLimit]   = useState(null)
   const [saving,         setSaving]         = useState(false)
 
-  const balance   = summary ? summary.totalIncome - summary.totalExpenses - summary.totalInvestments - summary.totalSavings : 0
-  const monthName = new Date(year, month - 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
+  // Saldo líquido = quanto sobra do salário após descontar a fatura do cartão.
+  const netBalance = (Number(profile?.account_balance) || 0) - (Number(profile?.credit_card_balance) || 0)
+  const monthName  = new Date(year, month - 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
 
   const saveBalance = async () => {
     if (newBalance == null) { toast.error('Informe o saldo'); return }
@@ -154,7 +157,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
         <BalanceCard label="Saldo em conta"   value={profile?.account_balance}    icon={Wallet}     color="emerald" onEdit={() => { setNewBalance(profile?.account_balance); setEditBalance(true) }} />
         <BalanceCard label="Cartão de crédito" value={profile?.credit_card_balance} icon={CreditCard} color="orange"  onEdit={() => { setNewCardBalance(profile?.credit_card_balance); setNewCardLimit(profile?.credit_card_limit); setEditCard(true) }} />
-        <BalanceCard label="Saldo do mês"     value={balance}                      icon={TrendingUp}  color="brand"   onEdit={() => {}} />
+        <BalanceCard label="Saldo líquido"    value={netBalance}                   icon={TrendingUp}  color="brand" />
       </div>
 
       {/* Stats */}
