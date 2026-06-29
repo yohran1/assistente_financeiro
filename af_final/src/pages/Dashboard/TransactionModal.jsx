@@ -8,6 +8,7 @@ import { Input }          from '../../components/ui/Input'
 import { Select }         from '../../components/ui/Select'
 import { Button }         from '../../components/ui/Button'
 import { CurrencyInput }  from '../../components/ui/CurrencyInput'
+import { BalancePreview } from '../../components/ui/BalancePreview'
 import toast from 'react-hot-toast'
 
 const schema = z.object({
@@ -24,7 +25,7 @@ const TYPES = [
 ]
 
 export function TransactionModal({ onClose, onSave }) {
-  const { categories } = useFinances()
+  const { categories, profile, walletsIncludedTotal } = useFinances()
   const [amount,     setAmount]     = useState(null)
   const [categoryId, setCategoryId] = useState('')
   const [saving,     setSaving]     = useState(false)
@@ -36,6 +37,10 @@ export function TransactionModal({ onClose, onSave }) {
   })
 
   const selectedType = watch('type')
+
+  const draftTransaction = amount > 0
+    ? { type: selectedType, amount, purchase_type: 'one_off' }
+    : null
 
   const onSubmit = async (data) => {
     if (!amount || amount <= 0) {
@@ -116,6 +121,13 @@ export function TransactionModal({ onClose, onSave }) {
           type="date"
           error={errors.date?.message}
           {...register('date')}
+        />
+
+        <BalancePreview
+          accountBalance={profile?.account_balance}
+          walletsIncludedTotal={walletsIncludedTotal}
+          creditCardBalance={profile?.credit_card_balance}
+          draftTransaction={draftTransaction}
         />
 
         <div className="flex gap-3 pt-1">

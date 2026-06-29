@@ -1,6 +1,6 @@
 -- Fase B: sub-carteiras (ex.: multibenefício)
 CREATE TABLE IF NOT EXISTS public.wallets (
-  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name             TEXT NOT NULL,
   balance          NUMERIC(14,2) NOT NULL DEFAULT 0,

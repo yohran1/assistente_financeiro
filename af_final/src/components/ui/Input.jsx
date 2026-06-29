@@ -23,11 +23,11 @@ export const Input = forwardRef(({
           {label}
         </label>
       )}
-      <div className="relative">
+      <div className="relative isolate">
         {Icon && (
-          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none z-10">
+          <span className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-center text-white/30">
             <Icon size={16} aria-hidden="true" />
-          </div>
+          </span>
         )}
         <input
           ref={ref}
@@ -39,12 +39,12 @@ export const Input = forwardRef(({
             props.autoComplete
           }
           className={`
-            w-full py-3 rounded-xl
+            w-full box-border py-3 rounded-xl
             bg-white/[0.05] border border-white/10
             text-white placeholder:text-white/30
-            transition-all duration-200
+            transition-colors duration-200
             min-h-[48px]
-            focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40
+            focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/40 focus:border-brand-500/40
             disabled:opacity-40 disabled:cursor-not-allowed
             ${error ? 'border-red-500/50 focus:ring-red-500/30 focus:border-red-500/50' : ''}
             ${Icon ? 'pl-10 pr-4' : 'px-4'}

@@ -5,10 +5,11 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { CurrencyInput } from '../../components/ui/CurrencyInput'
+import { BalancePreview } from '../../components/ui/BalancePreview'
 import toast from 'react-hot-toast'
 
 export function PurchaseModal({ onClose, onSave }) {
-  const { categories } = useFinances()
+  const { categories, profile, walletsIncludedTotal } = useFinances()
   const [description, setDescription] = useState('')
   const [store, setStore] = useState('')
   const [totalAmount, setTotalAmount] = useState(null)
@@ -27,6 +28,28 @@ export function PurchaseModal({ onClose, onSave }) {
     if (isInstallment && per > 0 && n > 0) return per * n
     return Number(totalAmount) || 0
   }, [isInstallment, installmentAmount, installmentsTotal, totalAmount])
+
+  const draftTransaction = useMemo(() => {
+    if (isInstallment) {
+      const per = Number(installmentAmount) || 0
+      const n = parseInt(installmentsTotal, 10) || 0
+      if (per <= 0 || n <= 0) return null
+      const total = per * n
+      const paid = inProgress ? parseInt(installmentsPaid, 10) || 0 : 0
+      return {
+        type: 'expense',
+        amount: total,
+        purchase_type: 'installment',
+        installment_amount: per,
+        installments_total: n,
+        installments_paid: paid,
+        in_progress: inProgress,
+      }
+    }
+    const total = Number(totalAmount) || 0
+    if (total <= 0) return null
+    return { type: 'expense', amount: total, purchase_type: 'one_off' }
+  }, [isInstallment, installmentAmount, installmentsTotal, totalAmount, inProgress, installmentsPaid])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -118,6 +141,13 @@ export function PurchaseModal({ onClose, onSave }) {
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
         <Input label="Data" type="date" value={date} onChange={e => setDate(e.target.value)} />
+
+        <BalancePreview
+          accountBalance={profile?.account_balance}
+          walletsIncludedTotal={walletsIncludedTotal}
+          creditCardBalance={profile?.credit_card_balance}
+          draftTransaction={draftTransaction}
+        />
 
         <div className="flex gap-3 pt-1">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancelar</Button>
