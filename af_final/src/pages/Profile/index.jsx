@@ -5,7 +5,13 @@ import { zodResolver }        from '@hookform/resolvers/zod'
 import { User, Lock, Download, Trash2, Shield, Landmark } from 'lucide-react'
 import { useAuth }            from '../../hooks/useAuth'
 import { updateProfile, updatePassword, deleteAccount, exportUserData } from '../../services/auth'
-import { requestPluggyConnectToken } from '../../services/pluggy'
+import {
+  requestPluggyConnectToken,
+  openPluggyConnect,
+  savePluggyConnection,
+  fetchPluggyConnections,
+  extractPluggyItemId,
+} from '../../services/pluggy'
 import { Card, CardHeader }   from '../../components/ui/Card'
 import { Input }              from '../../components/ui/Input'
 import { Button }             from '../../components/ui/Button'
@@ -35,6 +41,8 @@ export default function Profile() {
   const [watchPwd,   setWatchPwd]           = useState('')
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [connectingBank, setConnectingBank]       = useState(false)
+  const [bankConnections, setBankConnections]     = useState([])
+  const [loadingConnections, setLoadingConnections] = useState(true)
 
   const profileForm = useForm({
     resolver: zodResolver(profileSchema),
@@ -55,6 +63,27 @@ export default function Profile() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    setLoadingConnections(true)
+    fetchPluggyConnections()
+      .then((rows) => { if (!cancelled) setBankConnections(rows) })
+      .catch(() => { if (!cancelled) setBankConnections([]) })
+      .finally(() => { if (!cancelled) setLoadingConnections(false) })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  const refreshBankConnections = async () => {
+    try {
+      const rows = await fetchPluggyConnections()
+      setBankConnections(rows)
+    } catch {
+      setBankConnections([])
+    }
+  }
 
   const handleSaveProfile = async (data) => {
     setSavingProfile(true)
@@ -98,27 +127,47 @@ export default function Profile() {
     setConnectingBank(true)
     try {
       const result = await requestPluggyConnectToken()
-      if (result.ok && result.accessToken) {
-        toast.success('Token obtido — o widget Pluggy Connect será integrado na próxima etapa.')
+      if (!result.ok) {
+        if (result.status === 501) {
+          toast('Open Finance em breve — a integração Pluggy ainda está em desenvolvimento.', { icon: '🏦' })
+          return
+        }
+        if (result.status === 503) {
+          toast.error(result.message ?? 'Open Finance indisponível no momento. Tente novamente mais tarde.')
+          return
+        }
+        if (result.status === 502) {
+          toast.error(result.message ?? 'Não foi possível iniciar a conexão com o banco.')
+          return
+        }
+        toast.error(result.message ?? 'Não foi possível iniciar a conexão.')
         return
       }
-      if (result.ok) {
+
+      if (!result.accessToken) {
         toast.error('Resposta inesperada do servidor Open Finance.')
         return
       }
-      if (result.status === 501) {
-        toast('Open Finance em breve — a integração Pluggy ainda está em desenvolvimento.', { icon: '🏦' })
-        return
-      }
-      if (result.status === 503) {
-        toast.error(result.message ?? 'Open Finance indisponível no momento. Tente novamente mais tarde.')
-        return
-      }
-      if (result.status === 502) {
-        toast.error(result.message ?? 'Não foi possível iniciar a conexão com o banco.')
-        return
-      }
-      toast.error(result.message ?? 'Não foi possível iniciar a conexão.')
+
+      await openPluggyConnect(result.accessToken, {
+        onSuccess: async (data) => {
+          const itemId = extractPluggyItemId(data)
+          if (!itemId) {
+            toast.error('Conexão concluída, mas o identificador do banco não foi retornado.')
+            return
+          }
+          try {
+            await savePluggyConnection(itemId)
+            await refreshBankConnections()
+            toast.success('Banco conectado com sucesso!')
+          } catch (e) {
+            toast.error(e.message ?? 'Erro ao salvar conexão bancária')
+          }
+        },
+        onError: () => {
+          toast.error('Não foi possível concluir a conexão com o banco.')
+        },
+      })
     } catch (e) {
       toast.error(e.message ?? 'Erro ao conectar banco')
     } finally {
@@ -262,6 +311,26 @@ export default function Profile() {
               <span>Conectar banco</span>
             </Button>
           </div>
+          {loadingConnections ? (
+            <p className="text-xs text-white/30 px-1">Carregando conexões…</p>
+          ) : bankConnections.length > 0 ? (
+            <ul className="space-y-2" aria-label="Bancos conectados">
+              {bankConnections.map((conn) => (
+                <li
+                  key={conn.id}
+                  className="flex items-center justify-between gap-3 p-3 bg-emerald-500/[0.06] border border-emerald-500/15 rounded-xl"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm text-white truncate">Conta conectada</p>
+                    <p className="text-xs text-white/30 truncate font-mono">{conn.item_id.slice(0, 8)}…</p>
+                  </div>
+                  <span className="text-xs text-emerald-400 capitalize shrink-0">{conn.status}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-white/30 px-1">Nenhum banco conectado ainda.</p>
+          )}
         </div>
       </Card>
 
