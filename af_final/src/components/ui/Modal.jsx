@@ -5,19 +5,26 @@ import { Button } from './Button'
 export function Modal({ isOpen, onClose, title, children, size = 'md' }) {
   const overlayRef  = useRef(null)
   const firstFocRef = useRef(null)
+  const onCloseRef  = useRef(onClose)
 
-  // Fecha com ESC + trap focus + bloqueia scroll
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
+
+  // Fecha com ESC + trap focus + bloqueia scroll.
+  // onClose fica em ref para não reexecutar o efeito quando o pai re-renderiza
+  // (ex.: onChange em CurrencyInput) — isso roubava o foco do input.
   useEffect(() => {
     if (!isOpen) return
 
     const prevFocus = document.activeElement
     document.body.style.overflow = 'hidden'
 
-    // Foca o primeiro elemento focável
+    // Foca o botão fechar só na abertura do modal
     requestAnimationFrame(() => firstFocRef.current?.focus())
 
     const handleKey = (e) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
       // Trap focus dentro do modal
       if (e.key === 'Tab') {
         const focusable = overlayRef.current?.querySelectorAll(
@@ -40,7 +47,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }) {
       document.body.style.overflow = ''
       prevFocus?.focus()
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 
