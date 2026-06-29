@@ -589,7 +589,6 @@ export default function Dashboard() {
           label="Investimentos"
           value={investmentBalance}
           positive
-          subtitle={monthName}
           actions={[
             { label: 'Adicionar', onClick: () => openTxModal('investment') },
             { label: 'Incluir em receitas', onClick: () => { setQuickAmount(null); setQuickDesc(''); setTransferInvModal(true) } },
@@ -599,7 +598,6 @@ export default function Dashboard() {
           label="Poupança"
           value={savingsBalance}
           positive
-          subtitle={monthName}
           actions={[
             { label: 'Retirar da poupança', onClick: () => { setQuickAmount(null); setQuickDesc(''); setSavingsModal('withdraw') } },
           ]}
