@@ -10,6 +10,7 @@ import { ConfirmDialog }        from '../../components/ui/ConfirmDialog'
 import { deleteRecurringExpense } from '../../services/finances'
 import { PurchaseModal } from '../Dashboard/PurchaseModal'
 import { formatPurchaseLabel } from '../../lib/balanceImpact'
+import { InstallmentBreakdown, InstallmentToggleButton } from './InstallmentBreakdown'
 import toast from 'react-hot-toast'
 
 const TYPE_LABELS = {
@@ -35,6 +36,7 @@ export default function Expenses() {
   const [saving,        setSaving]        = useState(false)
   const [activeTab,     setActiveTab]     = useState('transactions')
   const [confirmDelete, setConfirmDelete] = useState(null) // { id, type }
+  const [expandedInstallmentId, setExpandedInstallmentId] = useState(null)
 
   // Campos do modal de edição
   const [editDesc,   setEditDesc]   = useState('')
@@ -91,6 +93,10 @@ export default function Expenses() {
       toast.success('Transação atualizada')
     } catch (e) { toast.error(e.message) }
     finally { setSaving(false) }
+  }
+
+  const toggleInstallmentPanel = (id) => {
+    setExpandedInstallmentId(prev => (prev === id ? null : id))
   }
 
   const handleDelete = (id) => setConfirmDelete({ id, type: 'transaction' })
@@ -206,50 +212,65 @@ export default function Expenses() {
             <div className="space-y-2">
               {filtered.map(tx => {
                 const t = TYPE_LABELS[tx.type] || TYPE_LABELS.expense
+                const isInstallment = tx.purchase_type === 'installment'
+                const panelOpen = expandedInstallmentId === tx.id
                 const dateStr = tx.date
                   ? new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')
                   : ''
                 return (
-                  <div key={tx.id} className="
-                    flex items-center gap-3 sm:gap-4
-                    bg-white/[0.03] border border-white/[0.06] rounded-2xl
-                    px-3.5 py-3 sm:px-4 sm:py-3.5
-                    hover:bg-white/[0.05] transition-all group
-                  ">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-lg flex-shrink-0 ${t.bg} ${t.color}`}>
-                      {t.label}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{tx.description}</p>
-                      <p className="text-xs text-white/30 mt-0.5 flex items-center gap-1">
-                        <Calendar size={10} aria-hidden="true" />
-                        {dateStr}{tx.categories?.name && ` · ${tx.categories.name}`}
-                        {tx.purchase_type === 'installment' && (
-                          <span className="text-orange-400/80"> · {formatPurchaseLabel(tx)}</span>
-                        )}
-                        {tx.store && ` · ${tx.store}`}
-                      </p>
+                  <div
+                    key={tx.id}
+                    className={`
+                      bg-white/[0.03] border rounded-2xl overflow-hidden
+                      hover:bg-white/[0.05] transition-all group
+                      ${panelOpen ? 'border-orange-500/20 bg-white/[0.04]' : 'border-white/[0.06]'}
+                    `}
+                  >
+                    <div className="flex items-center gap-3 sm:gap-4 px-3.5 py-3 sm:px-4 sm:py-3.5">
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-lg flex-shrink-0 ${t.bg} ${t.color}`}>
+                        {t.label}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{tx.description}</p>
+                        <p className="text-xs text-white/30 mt-0.5 flex items-center gap-1 flex-wrap">
+                          <Calendar size={10} aria-hidden="true" />
+                          {dateStr}{tx.categories?.name && ` · ${tx.categories.name}`}
+                          {isInstallment && (
+                            <span className="text-orange-400/80"> · {formatPurchaseLabel(tx)}</span>
+                          )}
+                          {tx.store && ` · ${tx.store}`}
+                        </p>
+                      </div>
+                      <span className={`text-sm font-semibold mono-number flex-shrink-0 ${t.color}`}>
+                        {tx.type === 'expense' ? '-' : '+'}{fmt(tx.amount)}
+                      </span>
+                      {isInstallment && (
+                        <InstallmentToggleButton
+                          open={panelOpen}
+                          onClick={() => toggleInstallmentPanel(tx.id)}
+                          description={tx.description}
+                        />
+                      )}
+                      <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => openEdit(tx)}
+                          aria-label={`Editar ${tx.description}`}
+                          className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white/70 transition-all touch-press min-w-[36px] min-h-[36px] flex items-center justify-center"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(tx.id)}
+                          aria-label={`Remover ${tx.description}`}
+                          className="p-2 rounded-xl hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-all touch-press min-w-[36px] min-h-[36px] flex items-center justify-center"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <span className={`text-sm font-semibold mono-number flex-shrink-0 ${t.color}`}>
-                      {tx.type === 'expense' ? '-' : '+'}{fmt(tx.amount)}
-                    </span>
-                    {/* Ações: sempre visíveis no mobile, hover no desktop */}
-                    <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => openEdit(tx)}
-                        aria-label={`Editar ${tx.description}`}
-                        className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white/70 transition-all touch-press min-w-[36px] min-h-[36px] flex items-center justify-center"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(tx.id)}
-                        aria-label={`Remover ${tx.description}`}
-                        className="p-2 rounded-xl hover:bg-red-500/10 text-white/40 hover:text-red-400 transition-all touch-press min-w-[36px] min-h-[36px] flex items-center justify-center"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                    {isInstallment && (
+                      <InstallmentBreakdown tx={tx} open={panelOpen} />
+                    )}
                   </div>
                 )
               })}
