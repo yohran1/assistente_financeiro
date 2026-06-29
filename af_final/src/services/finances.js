@@ -235,6 +235,11 @@ async function applyBalanceImpacts({ account = 0, creditCard = 0, savings = 0, i
     .select()
     .single()
 
+  if (error && isMissingSavingsColumnsError(error) && (savings || investment)) {
+    throw new Error(
+      'Colunas de poupança/investimento indisponíveis. Aplique a migration 008 no banco de produção.',
+    )
+  }
   if (error && (isMissingBillingColumnsError(error) || isMissingSavingsColumnsError(error))) {
     delete updates.savings_balance
     delete updates.investment_balance
