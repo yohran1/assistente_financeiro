@@ -8,6 +8,8 @@ import { Modal }                from '../../components/ui/Modal'
 import { CurrencyInput }        from '../../components/ui/CurrencyInput'
 import { ConfirmDialog }        from '../../components/ui/ConfirmDialog'
 import { addRecurringExpense, deleteRecurringExpense } from '../../services/finances'
+import { PurchaseModal } from '../Dashboard/PurchaseModal'
+import { formatPurchaseLabel } from '../../lib/balanceImpact'
 import toast from 'react-hot-toast'
 
 const TYPE_LABELS = {
@@ -23,13 +25,14 @@ export default function Expenses() {
   const {
     transactions, recurringExpenses, categories,
     loading, deleteTransaction, updateTransaction,
-    refresh,
+    refresh, addTransaction,
   } = useFinances()
 
   const [search,        setSearch]        = useState('')
   const [filterType,    setFilterType]    = useState('all')
   const [editTx,        setEditTx]        = useState(null)
-  const [addRecurring,  setAddRecurring]  = useState(false)
+  const [addPurchase,  setAddPurchase]  = useState(false)
+  const [addRecurring, setAddRecurring] = useState(false)
   const [saving,        setSaving]        = useState(false)
   const [activeTab,     setActiveTab]     = useState('transactions')
   const [confirmDelete, setConfirmDelete] = useState(null) // { id, type }
@@ -47,10 +50,17 @@ export default function Expenses() {
   const [recDay,    setRecDay]    = useState('')
   const [recCat,    setRecCat]    = useState('')
 
+  const [editStore, setEditStore] = useState('')
+  const [editPurchaseType, setEditPurchaseType] = useState('one_off')
+  const [editInstallmentsTotal, setEditInstallmentsTotal] = useState('')
+  const [editInstallmentsPaid, setEditInstallmentsPaid] = useState('0')
+  const [editInstallmentAmount, setEditInstallmentAmount] = useState(null)
+
   const filtered = transactions.filter(tx => {
     const matchSearch = tx.description.toLowerCase().includes(search.toLowerCase())
     const matchType   = filterType === 'all' || tx.type === filterType
-    return matchSearch && matchType
+    const matchTab    = activeTab !== 'installments' || tx.purchase_type === 'installment'
+    return matchSearch && matchType && matchTab
   })
 
   const openEdit = (tx) => {
@@ -60,6 +70,11 @@ export default function Expenses() {
     setEditType(tx.type)
     setEditCat(tx.category_id || '')
     setEditDate(tx.date)
+    setEditStore(tx.store || '')
+    setEditPurchaseType(tx.purchase_type || 'one_off')
+    setEditInstallmentsTotal(tx.installments_total != null ? String(tx.installments_total) : '')
+    setEditInstallmentsPaid(String(tx.installments_paid ?? 0))
+    setEditInstallmentAmount(tx.installment_amount != null ? Number(tx.installment_amount) : null)
   }
 
   const handleSaveEdit = async () => {
@@ -72,6 +87,12 @@ export default function Expenses() {
       await updateTransaction(editTx.id, {
         description: editDesc, amount: editAmount,
         type: editType, categoryId: editCat || null, date: editDate,
+        store: editStore || null,
+        purchaseType: editPurchaseType,
+        installmentsTotal: editPurchaseType === 'installment' ? editInstallmentsTotal : null,
+        installmentsPaid: editPurchaseType === 'installment' ? editInstallmentsPaid : 0,
+        installmentAmount: editPurchaseType === 'installment' ? editInstallmentAmount : null,
+        inProgress: editPurchaseType === 'installment' && Number(editInstallmentsPaid) > 0,
       })
       setEditTx(null)
       toast.success('Transação atualizada')
@@ -125,6 +146,10 @@ export default function Expenses() {
           <Button variant="secondary" size="md" onClick={refresh} aria-label="Atualizar">
             <RefreshCw size={15} />
           </Button>
+          <Button size="md" variant="secondary" onClick={() => setAddPurchase(true)}>
+            <Plus size={15} />
+            <span className="hidden sm:inline">Compra</span>
+          </Button>
           <Button size="md" onClick={() => setAddRecurring(true)}>
             <Plus size={15} />
             <span className="hidden sm:inline">Recorrente</span>
@@ -136,6 +161,7 @@ export default function Expenses() {
       <div className="flex gap-1 mb-5 bg-white/[0.03] rounded-2xl p-1 w-fit" role="tablist">
         {[
           { key: 'transactions', label: 'Transações' },
+          { key: 'installments', label: 'Parceladas' },
           { key: 'recurring',    label: 'Recorrentes' },
         ].map(({ key, label }) => (
           <button
@@ -154,8 +180,8 @@ export default function Expenses() {
         ))}
       </div>
 
-      {/* Aba: Transações */}
-      {activeTab === 'transactions' && (
+      {/* Aba: Transações / Parceladas */}
+      {(activeTab === 'transactions' || activeTab === 'installments') && (
         <>
           {/* Filtros */}
           <div className="flex flex-col sm:flex-row gap-3 mb-5">
@@ -223,6 +249,10 @@ export default function Expenses() {
                       <p className="text-xs text-white/30 mt-0.5 flex items-center gap-1">
                         <Calendar size={10} aria-hidden="true" />
                         {dateStr}{tx.categories?.name && ` · ${tx.categories.name}`}
+                        {tx.purchase_type === 'installment' && (
+                          <span className="text-orange-400/80"> · {formatPurchaseLabel(tx)}</span>
+                        )}
+                        {tx.store && ` · ${tx.store}`}
                       </p>
                     </div>
                     <span className={`text-sm font-semibold mono-number flex-shrink-0 ${t.color}`}>
@@ -313,6 +343,20 @@ export default function Expenses() {
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
           <Input label="Data" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+          <Input label="Loja" value={editStore} onChange={e => setEditStore(e.target.value)} />
+          <Select label="Tipo de compra" value={editPurchaseType} onChange={e => setEditPurchaseType(e.target.value)}>
+            <option value="one_off">Avulsa</option>
+            <option value="installment">Parcelada</option>
+          </Select>
+          {editPurchaseType === 'installment' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Total parcelas" type="number" min={2} value={editInstallmentsTotal} onChange={e => setEditInstallmentsTotal(e.target.value)} />
+                <Input label="Parcelas pagas" type="number" min={0} value={editInstallmentsPaid} onChange={e => setEditInstallmentsPaid(e.target.value)} />
+              </div>
+              <CurrencyInput label="Valor da parcela" value={editInstallmentAmount} onChange={setEditInstallmentAmount} />
+            </>
+          )}
           <div className="flex gap-3 pt-1">
             <Button variant="secondary" className="flex-1" onClick={() => setEditTx(null)}>Cancelar</Button>
             <Button className="flex-1" loading={saving} onClick={handleSaveEdit}>Salvar</Button>
@@ -350,6 +394,13 @@ export default function Expenses() {
           </div>
         </div>
       </Modal>
+
+      {addPurchase && (
+        <PurchaseModal
+          onClose={() => setAddPurchase(false)}
+          onSave={async (data) => { await addTransaction(data); await refresh(); setAddPurchase(false); toast.success('Compra adicionada') }}
+        />
+      )}
 
       {/* Confirm dialog — substitui window.confirm() */}
       <ConfirmDialog

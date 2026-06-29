@@ -6,11 +6,15 @@ import {
   getFinancialSummary,
   getCategories,
   getRecurringExpenses,
+  getWallets,
   updateAccountBalance,
   updateCreditCard,
   addTransaction,
   updateTransaction,
   deleteTransaction,
+  addWallet,
+  updateWallet,
+  deleteWallet,
 } from '../services/finances'
 
 export function useFinances() {
@@ -19,6 +23,7 @@ export function useFinances() {
   const [summary, setSummary] = useState(null)
   const [categories, setCategories] = useState([])
   const [recurringExpenses, setRecurringExpenses] = useState([])
+  const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -30,18 +35,20 @@ export function useFinances() {
     try {
       setLoading(true)
       setError(null)
-      const [p, t, s, c, r] = await Promise.all([
+      const [p, t, s, c, r, w] = await Promise.all([
         getProfile(),
         getTransactions({ month, year }),
         getFinancialSummary(month, year),
         getCategories(),
         getRecurringExpenses(),
+        getWallets(),
       ])
       setProfile(p)
       setTransactions(t)
       setSummary(s)
       setCategories(c)
       setRecurringExpenses(r)
+      setWallets(w)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -69,7 +76,10 @@ export function useFinances() {
   // Ações
   const handleUpdateBalance = async (value) => {
     const updated = await updateAccountBalance(value)
-    setProfile(prev => ({ ...prev, account_balance: updated.account_balance }))
+    setProfile(prev => ({
+      ...prev,
+      account_balance: Number(updated.account_balance) || 0,
+    }))
     return updated
   }
 
@@ -77,8 +87,10 @@ export function useFinances() {
     const updated = await updateCreditCard(data)
     setProfile(prev => ({
       ...prev,
-      credit_card_balance: updated.credit_card_balance,
-      credit_card_limit: updated.credit_card_limit,
+      credit_card_balance: Number(updated.credit_card_balance) || 0,
+      credit_card_limit: Number(updated.credit_card_limit) || 0,
+      credit_card_closing_day: updated.credit_card_closing_day ?? null,
+      credit_card_due_day: updated.credit_card_due_day ?? null,
     }))
     return updated
   }
@@ -102,12 +114,35 @@ export function useFinances() {
     await loadAll()
   }
 
+  const handleAddWallet = async (data) => {
+    const w = await addWallet(data)
+    setWallets(prev => [...prev, w])
+    return w
+  }
+
+  const handleUpdateWallet = async (id, data) => {
+    const w = await updateWallet(id, data)
+    setWallets(prev => prev.map(x => x.id === id ? w : x))
+    return w
+  }
+
+  const handleDeleteWallet = async (id) => {
+    await deleteWallet(id)
+    setWallets(prev => prev.filter(w => w.id !== id))
+  }
+
+  const walletsIncludedTotal = wallets
+    .filter(w => w.include_in_total)
+    .reduce((sum, w) => sum + (Number(w.balance) || 0), 0)
+
   return {
     profile,
     transactions,
     summary,
     categories,
     recurringExpenses,
+    wallets,
+    walletsIncludedTotal,
     loading,
     error,
     month,
@@ -120,5 +155,8 @@ export function useFinances() {
     addTransaction: handleAddTransaction,
     updateTransaction: handleUpdateTransaction,
     deleteTransaction: handleDeleteTransaction,
+    addWallet: handleAddWallet,
+    updateWallet: handleUpdateWallet,
+    deleteWallet: handleDeleteWallet,
   }
 }
