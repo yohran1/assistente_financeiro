@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react'
 import { useFinances }    from '../../hooks/useFinances'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Select }         from '../../components/ui/Select'
-import { TrendingUp, TrendingDown, Percent, PiggyBank } from 'lucide-react'
+import { TrendingUp, TrendingDown, Percent, PiggyBank, Calendar } from 'lucide-react'
 import { formatPurchaseLabel } from '../../lib/balanceImpact'
 
 const ExpensePieChart = lazy(() => import('../../components/charts/ExpensePieChart').then(m => ({ default: m.ExpensePieChart })))
@@ -62,10 +62,12 @@ export default function Analytics() {
           <p className="text-white/40 text-sm mt-0.5 capitalize">{monthName}</p>
         </div>
         <Select
+          icon={Calendar}
+          compact
           value={`${year}-${month}`}
           onChange={(e) => { const [y,m] = e.target.value.split('-'); setYear(+y); setMonth(+m) }}
           aria-label="Selecionar mês"
-          className="sm:w-52"
+          className="w-auto min-w-[10.5rem] sm:min-w-[11.5rem]"
         >
           {Array.from({ length: 12 }, (_, i) => {
             const d = new Date(year, i)
