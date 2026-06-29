@@ -7,15 +7,18 @@ import {
   getCategories,
   getRecurringExpenses,
   getWallets,
+  getActiveInstallments,
   updateAccountBalance,
   updateCreditCard,
   addTransaction,
+  addPurchase,
   updateTransaction,
   deleteTransaction,
   addWallet,
   updateWallet,
   deleteWallet,
 } from '../services/finances'
+import { computeMonthlyAccountDeductions } from '../lib/balanceImpact'
 
 export function useFinances() {
   const [profile, setProfile] = useState(null)
@@ -23,6 +26,7 @@ export function useFinances() {
   const [summary, setSummary] = useState(null)
   const [categories, setCategories] = useState([])
   const [recurringExpenses, setRecurringExpenses] = useState([])
+  const [activeInstallments, setActiveInstallments] = useState([])
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -35,13 +39,14 @@ export function useFinances() {
     try {
       setLoading(true)
       setError(null)
-      const [p, t, s, c, r, w] = await Promise.all([
+      const [p, t, s, c, r, w, inst] = await Promise.all([
         getProfile(),
         getTransactions({ month, year }),
         getFinancialSummary(month, year),
         getCategories(),
         getRecurringExpenses(),
         getWallets(),
+        getActiveInstallments(),
       ])
       setProfile(p)
       setTransactions(t)
@@ -49,6 +54,7 @@ export function useFinances() {
       setCategories(c)
       setRecurringExpenses(r)
       setWallets(w)
+      setActiveInstallments(inst)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -131,9 +137,23 @@ export function useFinances() {
     setWallets(prev => prev.filter(w => w.id !== id))
   }
 
+  const handleAddPurchase = async (data) => {
+    const result = await addPurchase(data)
+    await loadAll()
+    return result
+  }
+
   const walletsIncludedTotal = wallets
     .filter(w => w.include_in_total)
     .reduce((sum, w) => sum + (Number(w.balance) || 0), 0)
+
+  const monthlyDeductions = computeMonthlyAccountDeductions({
+    transactions,
+    activeInstallments,
+    recurringExpenses,
+    month,
+    year,
+  })
 
   return {
     profile,
@@ -141,6 +161,8 @@ export function useFinances() {
     summary,
     categories,
     recurringExpenses,
+    activeInstallments,
+    monthlyDeductions,
     wallets,
     walletsIncludedTotal,
     loading,
@@ -153,6 +175,7 @@ export function useFinances() {
     updateBalance: handleUpdateBalance,
     updateCreditCard: handleUpdateCreditCard,
     addTransaction: handleAddTransaction,
+    addPurchase: handleAddPurchase,
     updateTransaction: handleUpdateTransaction,
     deleteTransaction: handleDeleteTransaction,
     addWallet: handleAddWallet,

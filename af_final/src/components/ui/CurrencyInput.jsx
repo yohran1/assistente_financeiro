@@ -107,8 +107,8 @@ export const CurrencyInput = forwardRef(({
   return (
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-white/70">{label}</label>}
-      <div className="relative isolate">
-        <span className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-center text-white/40 text-sm font-medium">
+      <div className="relative isolate overflow-hidden">
+        <span className="pointer-events-none absolute left-0 top-0 z-10 flex h-full w-10 shrink-0 items-center justify-center text-white/40 text-sm font-medium select-none">
           R$
         </span>
         <input
@@ -122,7 +122,7 @@ export const CurrencyInput = forwardRef(({
             w-full box-border pl-10 pr-4 py-3 rounded-xl min-h-[48px]
             bg-white/5 border border-white/10
             text-white placeholder:text-white/30
-            focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/50 focus:border-brand-500/50
+            focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/50 focus:border-brand-500/50 focus:shadow-none
             transition-colors duration-200
             font-mono
             ${error ? 'border-red-500/50' : ''}

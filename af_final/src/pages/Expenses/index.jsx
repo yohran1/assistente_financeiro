@@ -7,7 +7,7 @@ import { Select }               from '../../components/ui/Select'
 import { Modal }                from '../../components/ui/Modal'
 import { CurrencyInput }        from '../../components/ui/CurrencyInput'
 import { ConfirmDialog }        from '../../components/ui/ConfirmDialog'
-import { addRecurringExpense, deleteRecurringExpense } from '../../services/finances'
+import { deleteRecurringExpense } from '../../services/finances'
 import { PurchaseModal } from '../Dashboard/PurchaseModal'
 import { formatPurchaseLabel } from '../../lib/balanceImpact'
 import toast from 'react-hot-toast'
@@ -25,14 +25,13 @@ export default function Expenses() {
   const {
     transactions, recurringExpenses, categories,
     loading, deleteTransaction, updateTransaction,
-    refresh, addTransaction,
+    refresh, addPurchase: addPurchaseFromHook,
   } = useFinances()
 
   const [search,        setSearch]        = useState('')
   const [filterType,    setFilterType]    = useState('all')
   const [editTx,        setEditTx]        = useState(null)
   const [addPurchase,  setAddPurchase]  = useState(false)
-  const [addRecurring, setAddRecurring] = useState(false)
   const [saving,        setSaving]        = useState(false)
   const [activeTab,     setActiveTab]     = useState('transactions')
   const [confirmDelete, setConfirmDelete] = useState(null) // { id, type }
@@ -43,12 +42,6 @@ export default function Expenses() {
   const [editType,   setEditType]   = useState('expense')
   const [editCat,    setEditCat]    = useState('')
   const [editDate,   setEditDate]   = useState('')
-
-  // Campos de gasto recorrente
-  const [recDesc,   setRecDesc]   = useState('')
-  const [recAmount, setRecAmount] = useState(null)
-  const [recDay,    setRecDay]    = useState('')
-  const [recCat,    setRecCat]    = useState('')
 
   const [editStore, setEditStore] = useState('')
   const [editPurchaseType, setEditPurchaseType] = useState('one_off')
@@ -118,21 +111,6 @@ export default function Expenses() {
     finally { setConfirmDelete(null) }
   }
 
-  const handleAddRecurring = async () => {
-    if (!recDesc.trim())                { toast.error('Descrição obrigatória'); return }
-    if (!recAmount || recAmount <= 0)   { toast.error('Valor deve ser positivo'); return }
-    if (!recDay || recDay < 1 || recDay > 31) { toast.error('Dia deve ser entre 1 e 31'); return }
-    setSaving(true)
-    try {
-      await addRecurringExpense({ description: recDesc, amount: recAmount, categoryId: recCat || null, dayOfMonth: recDay })
-      await refresh()
-      setAddRecurring(false)
-      setRecDesc(''); setRecAmount(null); setRecDay(''); setRecCat('')
-      toast.success('Gasto recorrente adicionado')
-    } catch (e) { toast.error(e.message) }
-    finally { setSaving(false) }
-  }
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto animate-fade-in">
 
@@ -146,13 +124,10 @@ export default function Expenses() {
           <Button variant="secondary" size="md" onClick={refresh} aria-label="Atualizar">
             <RefreshCw size={15} />
           </Button>
-          <Button size="md" variant="secondary" onClick={() => setAddPurchase(true)}>
+          <Button size="md" onClick={() => setAddPurchase(true)}>
             <Plus size={15} />
-            <span className="hidden sm:inline">Compra</span>
-          </Button>
-          <Button size="md" onClick={() => setAddRecurring(true)}>
-            <Plus size={15} />
-            <span className="hidden sm:inline">Recorrente</span>
+            <span className="hidden sm:inline">Adicionar compra</span>
+            <span className="sm:hidden">Compra</span>
           </Button>
         </div>
       </div>
@@ -225,7 +200,7 @@ export default function Expenses() {
           ) : filtered.length === 0 ? (
             <div className="text-center py-16 text-white/20">
               <p className="text-base mb-1">Nenhuma transação encontrada</p>
-              <p className="text-sm">Adicione transações pelo Dashboard</p>
+              <p className="text-sm">Adicione uma compra pelo botão acima</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -305,6 +280,7 @@ export default function Expenses() {
                 <p className="text-sm font-medium text-white truncate">{r.description}</p>
                 <p className="text-xs text-white/30 mt-0.5">
                   Todo dia {r.day_of_month}{r.categories?.name && ` · ${r.categories.name}`}
+                  {r.payment_source === 'credit_card' ? ' · Cartão' : ' · Conta'}
                 </p>
               </div>
               <span className="text-sm font-semibold text-red-400 mono-number flex-shrink-0">
@@ -364,41 +340,12 @@ export default function Expenses() {
         </div>
       </Modal>
 
-      {/* Modal: gasto recorrente */}
-      <Modal isOpen={addRecurring} onClose={() => setAddRecurring(false)} title="Novo gasto recorrente">
-        <div className="space-y-4">
-          <Input
-            label="Descrição"
-            placeholder="Ex: Netflix, Aluguel, Academia..."
-            value={recDesc}
-            onChange={e => setRecDesc(e.target.value)}
-            autoComplete="off"
-          />
-          <CurrencyInput label="Valor mensal" value={recAmount} onChange={setRecAmount} />
-          <Input
-            label="Dia do mês"
-            type="number"
-            min={1} max={31}
-            placeholder="Ex: 5"
-            value={recDay}
-            onChange={e => setRecDay(e.target.value)}
-            hint="Dia 29-31 será ajustado em meses menores"
-          />
-          <Select label="Categoria (opcional)" value={recCat} onChange={e => setRecCat(e.target.value)}>
-            <option value="">Sem categoria</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
-          <div className="flex gap-3 pt-1">
-            <Button variant="secondary" className="flex-1" onClick={() => setAddRecurring(false)}>Cancelar</Button>
-            <Button className="flex-1" loading={saving} onClick={handleAddRecurring}>Adicionar</Button>
-          </div>
-        </div>
-      </Modal>
+      {/* Modal: gasto recorrente removido — use PurchaseModal (assinatura) */}
 
       {addPurchase && (
         <PurchaseModal
           onClose={() => setAddPurchase(false)}
-          onSave={async (data) => { await addTransaction(data); await refresh(); setAddPurchase(false); toast.success('Compra adicionada') }}
+          onSave={async (data) => { await addPurchaseFromHook(data); setAddPurchase(false); toast.success('Compra adicionada') }}
         />
       )}
 

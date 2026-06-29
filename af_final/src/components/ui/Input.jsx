@@ -23,10 +23,10 @@ export const Input = forwardRef(({
           {label}
         </label>
       )}
-      <div className="relative isolate">
+      <div className="relative isolate overflow-hidden">
         {Icon && (
-          <span className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-center text-white/30">
-            <Icon size={16} aria-hidden="true" />
+          <span className="pointer-events-none absolute left-0 top-0 z-10 flex h-full w-10 shrink-0 items-center justify-center text-white/30">
+            <Icon size={16} className="shrink-0" aria-hidden="true" />
           </span>
         )}
         <input
@@ -44,7 +44,7 @@ export const Input = forwardRef(({
             text-white placeholder:text-white/30
             transition-colors duration-200
             min-h-[48px]
-            focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/40 focus:border-brand-500/40
+            focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/40 focus:border-brand-500/40 focus:shadow-none
             disabled:opacity-40 disabled:cursor-not-allowed
             ${error ? 'border-red-500/50 focus:ring-red-500/30 focus:border-red-500/50' : ''}
             ${Icon ? 'pl-10 pr-4' : 'px-4'}
