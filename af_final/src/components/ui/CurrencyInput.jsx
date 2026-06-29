@@ -107,8 +107,10 @@ export const CurrencyInput = forwardRef(({
   return (
     <div className="flex flex-col gap-1.5">
       {label && <label className="text-sm font-medium text-white/70">{label}</label>}
-      <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-sm font-medium">R$</span>
+      <div className="relative isolate">
+        <span className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-center text-white/40 text-sm font-medium">
+          R$
+        </span>
         <input
           ref={mergedRef}
           type="text"
@@ -117,11 +119,11 @@ export const CurrencyInput = forwardRef(({
           onBlur={handleBlur}
           value={displayValue}
           className={`
-            w-full pl-10 pr-4 py-3 rounded-xl
+            w-full box-border pl-10 pr-4 py-3 rounded-xl min-h-[48px]
             bg-white/5 border border-white/10
             text-white placeholder:text-white/30
-            focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50
-            transition-all duration-200
+            focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/50 focus:border-brand-500/50
+            transition-colors duration-200
             font-mono
             ${error ? 'border-red-500/50' : ''}
             ${className}

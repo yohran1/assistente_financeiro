@@ -26,22 +26,22 @@ export const Select = forwardRef(({
           {label}
         </label>
       )}
-      <div className="relative">
+      <div className="relative isolate">
         {Icon && (
-          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none z-10">
+          <span className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-center text-white/30">
             <Icon size={15} aria-hidden="true" />
-          </div>
+          </span>
         )}
         <select
           ref={ref}
           id={selectId}
           className={`
-            w-full rounded-xl
+            w-full box-border rounded-xl
             bg-white/[0.05] border border-white/10
             text-white
-            transition-all duration-200
+            transition-colors duration-200
             cursor-pointer
-            focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40
+            focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/40 focus:border-brand-500/40
             disabled:opacity-40 disabled:cursor-not-allowed
             bg-[length:0_0] [background-image:none]
             ${compact ? 'py-2 min-h-[40px] text-sm' : 'py-3 min-h-[48px]'}
@@ -56,7 +56,7 @@ export const Select = forwardRef(({
           {children}
         </select>
         {/* Seta customizada — funciona em todos os browsers */}
-        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-white/40 z-10">
+        <div className="absolute inset-y-0 right-0 z-10 flex w-10 items-center justify-center pointer-events-none text-white/40">
           <ChevronDown size={15} aria-hidden="true" />
         </div>
       </div>
