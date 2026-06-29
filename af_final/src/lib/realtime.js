@@ -27,6 +27,7 @@ function ensureChannel() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, handlePayload)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'recurring_expenses' }, handlePayload)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, handlePayload)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'wallets' }, handlePayload)
     .subscribe()
 
   return channel

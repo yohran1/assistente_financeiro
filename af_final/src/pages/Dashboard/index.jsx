@@ -1,5 +1,5 @@
 ﻿import { lazy, Suspense, useState } from 'react'
-import { Pencil, TrendingUp, TrendingDown, Wallet, CreditCard, Plus, Calendar } from 'lucide-react'
+import { Pencil, TrendingUp, TrendingDown, Wallet, CreditCard, Plus, Calendar, Trash2 } from 'lucide-react'
 import { useFinances }       from '../../hooks/useFinances'
 import { Card, CardHeader }  from '../../components/ui/Card'
 import { Button }            from '../../components/ui/Button'
@@ -8,7 +8,9 @@ import { Input }             from '../../components/ui/Input'
 import { CurrencyInput }     from '../../components/ui/CurrencyInput'
 import { ChatWidget }        from '../../components/chat/ChatWidget'
 import { TransactionModal }  from './TransactionModal'
+import { PurchaseModal }     from './PurchaseModal'
 import { getCreditCardBillingStatus } from '../../lib/creditCardBilling'
+import { formatPurchaseLabel } from '../../lib/balanceImpact'
 import toast from 'react-hot-toast'
 
 const ExpensePieChart = lazy(() => import('../../components/charts/ExpensePieChart').then(m => ({ default: m.ExpensePieChart })))
@@ -119,12 +121,105 @@ function StatCard({ label, value, positive }) {
   )
 }
 
+function WalletsPanel({ wallets, onAdd, onUpdate, onDelete }) {
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [balance, setBalance] = useState(null)
+  const [includeInTotal, setIncludeInTotal] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const saveWallet = async () => {
+    if (!name.trim()) { toast.error('Nome da carteira obrigatório'); return }
+    setSaving(true)
+    try {
+      await onAdd({ name: name.trim(), balance: balance ?? 0, includeInTotal })
+      setAdding(false)
+      setName('')
+      setBalance(null)
+      setIncludeInTotal(true)
+      toast.success('Sub-carteira criada')
+    } catch (e) { toast.error(e.message) }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-sm font-semibold text-white/80">Sub-carteiras</h2>
+        <Button size="sm" variant="secondary" onClick={() => setAdding(v => !v)}>
+          <Plus size={14} /> Criar sub-carteira
+        </Button>
+      </div>
+      {adding && (
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 mb-3 space-y-3">
+          <Input label="Nome" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Multibenefício" />
+          <CurrencyInput label="Saldo" value={balance} onChange={setBalance} />
+          <label className="flex items-center justify-between text-sm text-white/70">
+            <span>Somar ao saldo atual</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={includeInTotal}
+              onClick={() => setIncludeInTotal(v => !v)}
+              className={`w-11 h-6 rounded-full transition-colors ${includeInTotal ? 'bg-brand-500' : 'bg-white/20'} relative`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${includeInTotal ? 'left-5' : 'left-0.5'}`} />
+            </button>
+          </label>
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={() => setAdding(false)}>Cancelar</Button>
+            <Button className="flex-1" loading={saving} onClick={saveWallet}>Salvar</Button>
+          </div>
+        </div>
+      )}
+      {wallets.length === 0 ? (
+        <p className="text-xs text-white/30">Nenhuma sub-carteira. Ex.: cartão multibenefício.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {wallets.map(w => (
+            <div key={w.id} className="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2.5">
+              <div>
+                <p className="text-sm text-white">{w.name}</p>
+                <p className="text-xs text-white/35">{w.include_in_total ? 'Soma ao saldo' : 'Separada'}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold mono-number text-white">{fmt(w.balance)}</span>
+                <button
+                  type="button"
+                  aria-label={`Alternar somar ${w.name}`}
+                  onClick={() => onUpdate(w.id, { includeInTotal: !w.include_in_total })}
+                  className={`text-[10px] px-2 py-1 rounded-lg border ${w.include_in_total ? 'border-brand-500/40 text-brand-300' : 'border-white/10 text-white/40'}`}
+                >
+                  {w.include_in_total ? 'ON' : 'OFF'}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Excluir ${w.name}`}
+                  onClick={() => onDelete(w.id)}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Dashboard() {
-  const { profile, summary, loading, error, month, year, setMonth, setYear, updateBalance, updateCreditCard, addTransaction } = useFinances()
+  const {
+    profile, summary, wallets, walletsIncludedTotal, loading, error,
+    month, year, setMonth, setYear,
+    updateBalance, updateCreditCard, addTransaction, addWallet, updateWallet, deleteWallet,
+  } = useFinances()
 
   const [editBalance,    setEditBalance]    = useState(false)
   const [editCard,       setEditCard]       = useState(false)
   const [addTxModal,     setAddTxModal]     = useState(false)
+  const [addPurchase,    setAddPurchase]    = useState(false)
   const [newBalance,     setNewBalance]     = useState(null)
   const [newCardBalance, setNewCardBalance] = useState(null)
   const [newCardLimit,   setNewCardLimit]   = useState(null)
@@ -132,8 +227,9 @@ export default function Dashboard() {
   const [newDueDay,      setNewDueDay]      = useState('')
   const [saving,         setSaving]         = useState(false)
 
-  // Saldo líquido = quanto sobra do salário após descontar a fatura do cartão.
-  const netBalance = (Number(profile?.account_balance) || 0) - (Number(profile?.credit_card_balance) || 0)
+  // Saldo líquido = conta (+ sub-carteiras ON) − cartão
+  const accountTotal = (Number(profile?.account_balance) || 0) + walletsIncludedTotal
+  const netBalance = accountTotal - (Number(profile?.credit_card_balance) || 0)
   const monthName  = new Date(year, month - 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
 
   const openCardEdit = () => {
@@ -214,6 +310,10 @@ export default function Dashboard() {
               })}
             </select>
           </div>
+          <Button onClick={() => setAddPurchase(true)} size="md" variant="secondary">
+            <Plus size={15} aria-hidden="true" />
+            <span className="hidden sm:inline">Adicionar compra</span>
+          </Button>
           <Button onClick={() => setAddTxModal(true)} size="md">
             <Plus size={15} aria-hidden="true" />
             <span className="hidden sm:inline">Nova transação</span>
@@ -224,7 +324,7 @@ export default function Dashboard() {
 
       {/* Cards de saldo */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-        <BalanceCard label="Saldo em conta" value={profile?.account_balance} icon={Wallet} color="emerald" onEdit={() => { setNewBalance(profile?.account_balance); setEditBalance(true) }} />
+        <BalanceCard label="Saldo em conta" value={accountTotal} icon={Wallet} color="emerald" onEdit={() => { setNewBalance(profile?.account_balance); setEditBalance(true) }} />
         <CreditCardCard
           value={profile?.credit_card_balance}
           closingDay={profile?.credit_card_closing_day}
@@ -233,6 +333,13 @@ export default function Dashboard() {
         />
         <BalanceCard label="Saldo líquido" value={netBalance} icon={TrendingUp} color="brand" />
       </div>
+
+      <WalletsPanel
+        wallets={wallets}
+        onAdd={addWallet}
+        onUpdate={updateWallet}
+        onDelete={async (id) => { await deleteWallet(id); toast.success('Sub-carteira removida') }}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-4">
@@ -263,6 +370,33 @@ export default function Dashboard() {
           </Suspense>
         </Card>
       </div>
+
+      {summary?.items?.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-white">Gastos do mês (detalhe)</h2>
+            <p className="text-xs text-white/30">Avulsas e parceladas — valores já descontam do saldo em conta</p>
+          </CardHeader>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {summary.items.map(item => (
+              <div key={item.id} className="flex items-center justify-between text-sm py-2 border-b border-white/[0.04] last:border-0">
+                <div className="min-w-0">
+                  <p className="text-white truncate">{item.description}{item.store ? ` · ${item.store}` : ''}</p>
+                  <p className="text-[11px] text-white/35">
+                    {formatPurchaseLabel(item)}
+                    {item.purchaseType === 'installment' && item.installmentsTotal
+                      ? ` · ${item.installmentsPaid}/${item.installmentsTotal} · ${Number(item.installmentAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/parcela`
+                      : ' · Avulsa'}
+                  </p>
+                </div>
+                <span className="text-red-400 mono-number flex-shrink-0 ml-2">
+                  -{fmt(item.purchaseType === 'installment' ? item.installmentAmount || item.amount : item.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Modais */}
       <Modal isOpen={editBalance} onClose={() => setEditBalance(false)} title="Atualizar saldo em conta">
@@ -312,6 +446,13 @@ export default function Dashboard() {
         <TransactionModal
           onClose={() => setAddTxModal(false)}
           onSave={async (data) => { await addTransaction(data); setAddTxModal(false); toast.success('Transação adicionada') }}
+        />
+      )}
+
+      {addPurchase && (
+        <PurchaseModal
+          onClose={() => setAddPurchase(false)}
+          onSave={async (data) => { await addTransaction(data); setAddPurchase(false); toast.success('Compra registrada') }}
         />
       )}
 

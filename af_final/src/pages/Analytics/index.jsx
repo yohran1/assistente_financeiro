@@ -3,6 +3,7 @@ import { useFinances }    from '../../hooks/useFinances'
 import { Card, CardHeader } from '../../components/ui/Card'
 import { Select }         from '../../components/ui/Select'
 import { TrendingUp, TrendingDown, Percent, PiggyBank } from 'lucide-react'
+import { formatPurchaseLabel } from '../../lib/balanceImpact'
 
 const ExpensePieChart = lazy(() => import('../../components/charts/ExpensePieChart').then(m => ({ default: m.ExpensePieChart })))
 const BalanceBarChart = lazy(() => import('../../components/charts/BalanceBarChart').then(m => ({ default: m.BalanceBarChart })))
@@ -106,6 +107,40 @@ export default function Analytics() {
           </Suspense>
         </Card>
       </div>
+
+      {/* Gastos do mês (regra 7) */}
+      {summary?.items && summary.items.length > 0 && (
+        <Card className="mb-4">
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-white">Gastos do mês</h2>
+            <p className="text-xs text-white/30">Avulsas e parceladas (ex.: 3/5)</p>
+          </CardHeader>
+          <div className="space-y-2">
+            {summary.items.map(item => {
+              const label = item.purchaseType === 'installment'
+                ? formatPurchaseLabel(item)
+                : 'Avulsa'
+              const displayAmt = item.purchaseType === 'installment'
+                ? item.installmentAmount ?? item.amount
+                : item.amount
+              return (
+                <div key={item.id} className="flex items-center justify-between gap-3 py-2 border-b border-white/[0.04] last:border-0">
+                  <div className="min-w-0">
+                    <p className="text-sm text-white truncate">{item.description}</p>
+                    <p className="text-xs text-white/30">
+                      {label}
+                      {item.store && ` · ${item.store}`}
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold text-red-400 mono-number flex-shrink-0">
+                    {fmt(displayAmt)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Detalhamento por categoria */}
       {summary?.byCategory && Object.keys(summary.byCategory).length > 0 && (
