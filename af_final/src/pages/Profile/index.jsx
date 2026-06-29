@@ -98,8 +98,12 @@ export default function Profile() {
     setConnectingBank(true)
     try {
       const result = await requestPluggyConnectToken()
+      if (result.ok && result.accessToken) {
+        toast.success('Token obtido — o widget Pluggy Connect será integrado na próxima etapa.')
+        return
+      }
       if (result.ok) {
-        toast.success('Conexão iniciada — em breve o widget Pluggy abrirá aqui.')
+        toast.error('Resposta inesperada do servidor Open Finance.')
         return
       }
       if (result.status === 501) {
@@ -107,7 +111,11 @@ export default function Profile() {
         return
       }
       if (result.status === 503) {
-        toast.error('Open Finance indisponível no momento. Tente novamente mais tarde.')
+        toast.error(result.message ?? 'Open Finance indisponível no momento. Tente novamente mais tarde.')
+        return
+      }
+      if (result.status === 502) {
+        toast.error(result.message ?? 'Não foi possível iniciar a conexão com o banco.')
         return
       }
       toast.error(result.message ?? 'Não foi possível iniciar a conexão.')
