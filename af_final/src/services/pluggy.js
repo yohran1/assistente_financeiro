@@ -33,9 +33,24 @@ export async function requestPluggyConnectToken() {
     }
   }
 
+  if (httpStatus === 502) {
+    return {
+      ok: false,
+      status: 502,
+      message: data?.error ?? 'Não foi possível iniciar a conexão com o banco.',
+      data,
+    }
+  }
+
   if (error) {
     throw new Error(data?.error ?? error.message ?? 'Erro ao conectar com Open Finance')
   }
 
-  return { ok: true, status: 200, message: null, data }
+  return {
+    ok: true,
+    status: 200,
+    accessToken: data?.accessToken ?? null,
+    message: null,
+    data,
+  }
 }
