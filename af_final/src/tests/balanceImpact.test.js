@@ -38,15 +38,15 @@ describe('balanceImpact', () => {
     expect(balanceImpactForTransaction({
       type: 'expense', amount: 1000, purchase_type: 'installment', payment_source: 'credit_card',
       installment_amount: 200, installments_total: 5, installments_paid: 3, in_progress: true,
-    })).toEqual({ account: 0, creditCard: 200 })
+    })).toEqual({ account: 0, creditCard: 200, savings: 0, investment: 0 })
   })
 
   it('assinatura na conta não debita na criação', () => {
-    expect(balanceImpactForRecurring({ amount: 49.9, payment_source: 'account' })).toEqual({ account: 0, creditCard: 0 })
+    expect(balanceImpactForRecurring({ amount: 49.9, payment_source: 'account' })).toEqual({ account: 0, creditCard: 0, savings: 0, investment: 0 })
   })
 
   it('assinatura no cartão aumenta fatura', () => {
-    expect(balanceImpactForRecurring({ amount: 55, payment_source: 'credit_card' })).toEqual({ account: 0, creditCard: 55 })
+    expect(balanceImpactForRecurring({ amount: 55, payment_source: 'credit_card' })).toEqual({ account: 0, creditCard: 55, savings: 0, investment: 0 })
   })
 
   it('formata label parcelada (camelCase — summary.items)', () => {
@@ -74,6 +74,7 @@ describe('balanceImpact', () => {
     ]
     expect(computeCreditCardLimitUsed(installments)).toBe(6600)
     expect(computeAvailableCreditLimit(10000, installments)).toBe(3400)
+    expect(computeAvailableCreditLimit(10000, installments, 610)).toBe(2790)
   })
 
   it('monta cronograma de parcelas com status', () => {

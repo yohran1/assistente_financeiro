@@ -126,22 +126,50 @@ async function callGroq(messages: any[], context: any, apiKey: string): Promise<
 }
 
 function buildSystemPrompt(context: any): string {
-  return `Você é um assistente financeiro pessoal inteligente e amigável em português brasileiro.
+  return `Voce e um assistente financeiro pessoal em portugues brasileiro.
 
-CONTEXTO FINANCEIRO DO USUÁRIO:
+CONTEXTO FINANCEIRO:
 - Saldo em conta: R$ ${(context.accountBalance || 0).toFixed(2)}
-- Fatura do cartão: R$ ${(context.creditCardBalance || 0).toFixed(2)}
-- Total de receitas (mês): R$ ${(context.totalIncome || 0).toFixed(2)}
-- Total de gastos (mês): R$ ${(context.totalExpenses || 0).toFixed(2)}
-- Categorias disponíveis: ${(context.categories || []).map((c: any) => c.name).join(", ") || "Nenhuma"}
+- Fatura do cartao: R$ ${(context.creditCardBalance || 0).toFixed(2)}
+- Receitas do mes: R$ ${(context.totalIncome || 0).toFixed(2)}
+- Gastos do mes: R$ ${(context.totalExpenses || 0).toFixed(2)}
+- Categorias: ${(context.categories || []).map((c: any) => c.name).join(", ") || "Nenhuma"}
 
-INSTRUÇÕES:
-- Responda sempre em português brasileiro de forma clara e objetiva
-- Quando o usuário pedir para registrar algo, diga que você inseriu e peça para ele verificar
-- Dê conselhos financeiros personalizados baseados no contexto acima
-- Seja proativo em identificar padrões de gastos
-- Máximo 3 parágrafos por resposta
-- Use emojis moderadamente para tornar a conversa mais amigável`
+REGRAS DE RESPOSTA:
+- Respostas curtas e objetivas (maximo 2 paragrafos curtos)
+- NUNCA use markdown: sem asteriscos, hashtags, backticks ou listas com hifen
+- Texto simples, direto, amigavel
+- Sem emojis excessivos (no maximo 1)
+
+REGISTRO DE TRANSACOES:
+Quando o usuario pedir para registrar gasto, receita ou compra, inclua UMA linha no final:
+ACTION: {"type":"add_expense","description":"descricao","amount":50.00,"payment_source":"account"}
+Tipos validos: add_expense, add_income, add_purchase
+payment_source: account ou credit_card
+purchase_type (add_purchase): one_off ou installment
+Confirme brevemente o que foi registrado e peca para o usuario conferir no dashboard.`
+}
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^[-*]\s+/gm, "")
+    .trim()
+}
+
+function parseAiResponse(raw: string): { content: string; action: Record<string, unknown> | null } {
+  const match = raw.match(/ACTION:\s*(\{[\s\S]*?\})/i)
+  if (!match) return { content: stripMarkdown(raw), action: null }
+  try {
+    const action = JSON.parse(match[1])
+    const content = stripMarkdown(raw.replace(match[0], "").trim())
+    return { content, action }
+  } catch {
+    return { content: stripMarkdown(raw), action: null }
+  }
 }
 
 // ── Router com failover automático entre múltiplas chaves ────
@@ -229,9 +257,10 @@ serve(async (req) => {
     }
 
     const trimmedMessages = messages.slice(-20)
-    const content = await routeAI(trimmedMessages, context || {})
+    const rawContent = await routeAI(trimmedMessages, context || {})
+    const { content, action } = parseAiResponse(rawContent)
 
-    return new Response(JSON.stringify({ content }), {
+    return new Response(JSON.stringify({ content, action }), {
       status: 200,
       headers: { ...buildCorsHeaders(origin), "Content-Type": "application/json" },
     })

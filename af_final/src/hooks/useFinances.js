@@ -15,6 +15,10 @@ import {
   addPurchase,
   updateTransaction,
   deleteTransaction,
+  depositToSavings,
+  withdrawFromSavings,
+  transferInvestmentToIncome,
+  deleteMonthIncome,
   addWallet,
   updateWallet,
   deleteWallet,
@@ -125,6 +129,30 @@ export function useFinances() {
     await loadAll()
   }
 
+  const handleDepositToSavings = async (amount, description) => {
+    const tx = await depositToSavings(amount, description)
+    await loadAll()
+    return tx
+  }
+
+  const handleWithdrawFromSavings = async (amount, description) => {
+    const result = await withdrawFromSavings(amount, description)
+    await loadAll()
+    return result
+  }
+
+  const handleTransferInvestmentToIncome = async (amount, description) => {
+    const tx = await transferInvestmentToIncome(amount, description)
+    await loadAll()
+    return tx
+  }
+
+  const handleDeleteMonthIncome = async () => {
+    const count = await deleteMonthIncome(month, year)
+    await loadAll()
+    return count
+  }
+
   const handleAddWallet = async (data) => {
     const w = await addWallet(data)
     setWallets(prev => [...prev, w])
@@ -183,6 +211,7 @@ export function useFinances() {
   const availableCreditLimit = computeAvailableCreditLimit(
     profile?.credit_card_limit,
     activeInstallments,
+    profile?.credit_card_balance,
   )
 
   return {
@@ -207,6 +236,10 @@ export function useFinances() {
     updateCreditCard: handleUpdateCreditCard,
     addTransaction: handleAddTransaction,
     addPurchase: handleAddPurchase,
+    depositToSavings: handleDepositToSavings,
+    withdrawFromSavings: handleWithdrawFromSavings,
+    transferInvestmentToIncome: handleTransferInvestmentToIncome,
+    deleteMonthIncome: handleDeleteMonthIncome,
     payCreditCardInvoice: handlePayCreditCardInvoice,
     updateTransaction: handleUpdateTransaction,
     deleteTransaction: handleDeleteTransaction,

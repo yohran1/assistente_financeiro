@@ -46,7 +46,10 @@ export async function sendToAI(messages, financialContext = {}) {
   }
 
   const data = await response.json()
-  return data.content || data.message || 'Sem resposta da IA'
+  return {
+    content: data.content || data.message || 'Sem resposta da IA',
+    action: data.action || null,
+  }
 }
 
 /**

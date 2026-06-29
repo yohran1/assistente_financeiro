@@ -14,9 +14,9 @@ function installmentsPaidOf(tx) {
   return tx?.installments_paid ?? tx?.installmentsPaid ?? 0
 }
 
-/** Impacto de uma transação em conta e cartão (+ entra, − sai / fatura). */
+/** Impacto de uma transação em conta, cartão, poupança e investimentos. */
 export function balanceImpactForTransaction(tx) {
-  if (!tx) return { account: 0, creditCard: 0 }
+  if (!tx) return { account: 0, creditCard: 0, savings: 0, investment: 0 }
 
   const type = tx.type
   const amount = Number(tx.amount) || 0
@@ -24,25 +24,28 @@ export function balanceImpactForTransaction(tx) {
   const purchaseType = purchaseTypeOf(tx)
   const paymentSource = paymentSourceOf(tx)
 
-  if (type === 'income') return { account: amount, creditCard: 0 }
+  if (type === 'income') return { account: amount, creditCard: 0, savings: 0, investment: 0 }
 
   if (type === 'expense') {
     if (purchaseType === 'installment') {
-      // Parcelado no cartão: só a parcela atual entra na fatura; conta não muda na compra.
       const creditCardDelta = paymentSource === 'credit_card' ? installmentAmount : 0
-      return { account: 0, creditCard: creditCardDelta }
+      return { account: 0, creditCard: creditCardDelta, savings: 0, investment: 0 }
     }
     if (paymentSource === 'credit_card') {
-      return { account: 0, creditCard: amount }
+      return { account: 0, creditCard: amount, savings: 0, investment: 0 }
     }
-    return { account: -amount, creditCard: 0 }
+    return { account: -amount, creditCard: 0, savings: 0, investment: 0 }
   }
 
-  if (type === 'investment' || type === 'saving') {
-    return { account: -amount, creditCard: 0 }
+  if (type === 'investment') {
+    return { account: -amount, creditCard: 0, savings: 0, investment: amount }
   }
 
-  return { account: 0, creditCard: 0 }
+  if (type === 'saving') {
+    return { account: -amount, creditCard: 0, savings: amount, investment: 0 }
+  }
+
+  return { account: 0, creditCard: 0, savings: 0, investment: 0 }
 }
 
 /** Compat: delta só em conta (legado). */
@@ -55,13 +58,12 @@ export function creditCardDeltaForTransaction(tx) {
 }
 
 export function balanceImpactForRecurring(exp) {
-  if (!exp) return { account: 0, creditCard: 0 }
+  if (!exp) return { account: 0, creditCard: 0, savings: 0, investment: 0 }
   const amount = Number(exp.amount) || 0
   if (paymentSourceOf(exp) === 'credit_card') {
-    return { account: 0, creditCard: amount }
+    return { account: 0, creditCard: amount, savings: 0, investment: 0 }
   }
-  // Assinatura na conta: não debita na criação (só à vista na conta debita imediatamente).
-  return { account: 0, creditCard: 0 }
+  return { account: 0, creditCard: 0, savings: 0, investment: 0 }
 }
 
 function isInMonth(dateStr, month, year) {
@@ -177,10 +179,14 @@ export function computeCreditCardLimitUsed(activeInstallments = []) {
   }, 0)
 }
 
-export function computeAvailableCreditLimit(creditLimit, activeInstallments = []) {
+/**
+ * Limite disponível = limite total − fatura atual − comprometimento restante em parcelas.
+ */
+export function computeAvailableCreditLimit(creditLimit, activeInstallments = [], creditCardBalance = 0) {
   const limit = Number(creditLimit) || 0
-  const used = computeCreditCardLimitUsed(activeInstallments)
-  return Math.max(0, limit - used)
+  const invoice = Math.max(0, Number(creditCardBalance) || 0)
+  const installmentCommitment = computeCreditCardLimitUsed(activeInstallments)
+  return Math.max(0, limit - invoice - installmentCommitment)
 }
 
 export function purchaseKindLabel(kind) {
