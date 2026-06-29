@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useForm }            from 'react-hook-form'
 import { z }                  from 'zod'
 import { zodResolver }        from '@hookform/resolvers/zod'
-import { User, Lock, Download, Trash2, Shield } from 'lucide-react'
+import { User, Lock, Download, Trash2, Shield, Landmark } from 'lucide-react'
 import { useAuth }            from '../../hooks/useAuth'
 import { updateProfile, updatePassword, deleteAccount, exportUserData } from '../../services/auth'
+import { requestPluggyConnectToken } from '../../services/pluggy'
 import { Card, CardHeader }   from '../../components/ui/Card'
 import { Input }              from '../../components/ui/Input'
 import { Button }             from '../../components/ui/Button'
@@ -33,6 +34,7 @@ export default function Profile() {
   const [deleting,   setDeleting]           = useState(false)
   const [watchPwd,   setWatchPwd]           = useState('')
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [connectingBank, setConnectingBank]       = useState(false)
 
   const profileForm = useForm({
     resolver: zodResolver(profileSchema),
@@ -90,6 +92,30 @@ export default function Profile() {
       toast.success('Dados exportados')
     } catch { toast.error('Erro ao exportar') }
     finally { setExporting(false) }
+  }
+
+  const handleConnectBank = async () => {
+    setConnectingBank(true)
+    try {
+      const result = await requestPluggyConnectToken()
+      if (result.ok) {
+        toast.success('Conexão iniciada — em breve o widget Pluggy abrirá aqui.')
+        return
+      }
+      if (result.status === 501) {
+        toast('Open Finance em breve — a integração Pluggy ainda está em desenvolvimento.', { icon: '🏦' })
+        return
+      }
+      if (result.status === 503) {
+        toast.error('Open Finance indisponível no momento. Tente novamente mais tarde.')
+        return
+      }
+      toast.error(result.message ?? 'Não foi possível iniciar a conexão.')
+    } catch (e) {
+      toast.error(e.message ?? 'Erro ao conectar banco')
+    } finally {
+      setConnectingBank(false)
+    }
   }
 
   const handleDeleteAccount = async () => {
@@ -197,6 +223,38 @@ export default function Profile() {
             Alterar senha
           </Button>
         </form>
+      </Card>
+
+      {/* Open Finance */}
+      <Card className="mb-4">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Landmark size={15} className="text-white/40" aria-hidden="true" />
+            <h2 className="text-sm font-semibold text-white">Open Finance</h2>
+          </div>
+        </CardHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-white/50 leading-relaxed">
+            Conecte sua conta bancária via Open Finance (Pluggy) para importar saldos e movimentações automaticamente.
+            Os dados preencherão o saldo em conta, compras do cartão, assinaturas e gastos recorrentes no Dashboard.
+          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-white/[0.02] rounded-2xl">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white">Conectar banco</p>
+              <p className="text-xs text-white/30 mt-0.5">Importação segura — credenciais nunca passam pelo app</p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleConnectBank}
+              loading={connectingBank}
+              aria-label="Conectar banco via Open Finance"
+            >
+              <Landmark size={14} aria-hidden="true" />
+              <span>Conectar banco</span>
+            </Button>
+          </div>
+        </div>
       </Card>
 
       {/* Privacidade LGPD */}
