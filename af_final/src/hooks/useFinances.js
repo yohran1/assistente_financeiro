@@ -69,7 +69,10 @@ export function useFinances() {
   // Ações
   const handleUpdateBalance = async (value) => {
     const updated = await updateAccountBalance(value)
-    setProfile(prev => ({ ...prev, account_balance: updated.account_balance }))
+    setProfile(prev => ({
+      ...prev,
+      account_balance: Number(updated.account_balance) || 0,
+    }))
     return updated
   }
 
@@ -77,10 +80,10 @@ export function useFinances() {
     const updated = await updateCreditCard(data)
     setProfile(prev => ({
       ...prev,
-      credit_card_balance: updated.credit_card_balance,
-      credit_card_limit: updated.credit_card_limit,
-      credit_card_closing_day: updated.credit_card_closing_day,
-      credit_card_due_day: updated.credit_card_due_day,
+      credit_card_balance: Number(updated.credit_card_balance) || 0,
+      credit_card_limit: Number(updated.credit_card_limit) || 0,
+      credit_card_closing_day: updated.credit_card_closing_day ?? null,
+      credit_card_due_day: updated.credit_card_due_day ?? null,
     }))
     return updated
   }

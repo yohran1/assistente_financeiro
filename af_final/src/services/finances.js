@@ -15,19 +15,39 @@ function parseNumeric(value) {
 
 // ── Saldo e Cartão ──────────────────────────────────────────────────────────
 
-export async function getProfile() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, name, account_balance, credit_card_balance, credit_card_limit, credit_card_closing_day, credit_card_due_day, updated_at')
-    .single()
-  if (error) throw error
+const PROFILE_BASE_FIELDS =
+  'id, name, account_balance, credit_card_balance, credit_card_limit, updated_at'
+const PROFILE_EXTENDED_FIELDS =
+  `${PROFILE_BASE_FIELDS}, credit_card_closing_day, credit_card_due_day`
 
+function isMissingBillingColumnsError(error) {
+  const msg = error?.message ?? ''
+  return msg.includes('credit_card_closing_day') || msg.includes('credit_card_due_day')
+}
+
+function normalizeProfile(data) {
   return {
     ...data,
     account_balance: parseNumeric(data?.account_balance),
     credit_card_balance: parseNumeric(data?.credit_card_balance),
     credit_card_limit: parseNumeric(data?.credit_card_limit),
+    credit_card_closing_day: data?.credit_card_closing_day ?? null,
+    credit_card_due_day: data?.credit_card_due_day ?? null,
   }
+}
+
+export async function getProfile() {
+  let { data, error } = await supabase
+    .from('profiles')
+    .select(PROFILE_EXTENDED_FIELDS)
+    .single()
+
+  if (error && isMissingBillingColumnsError(error)) {
+    ;({ data, error } = await supabase.from('profiles').select(PROFILE_BASE_FIELDS).single())
+  }
+  if (error) throw error
+
+  return normalizeProfile(data)
 }
 
 export async function updateAccountBalance(value) {
@@ -72,14 +92,28 @@ export async function updateCreditCard({ balance, limit, closingDay, dueDay }) {
   updates.updated_at = new Date().toISOString()
 
   const userId = await getCurrentUserId()
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('profiles')
     .update(updates)
     .eq('id', userId)
     .select()
     .single()
+
+  if (error && isMissingBillingColumnsError(error)) {
+    delete updates.credit_card_closing_day
+    delete updates.credit_card_due_day
+    ;({ data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single())
+    if (!error && (closing !== undefined || due !== undefined)) {
+      throw new Error('Migration 002 pendente no Supabase — execute 002_credit_card_billing.sql para salvar fechamento/vencimento')
+    }
+  }
   if (error) throw error
-  return data
+  return normalizeProfile(data)
 }
 
 // ── Transações ───────────────────────────────────────────────────────────────
