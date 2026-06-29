@@ -3,6 +3,9 @@ import {
   getCreditCardBillingStatus,
   getLastClosingDate,
   getDueDateForClosing,
+  payCreditCardInvoicePlan,
+  computeProjectedCreditCardInvoice,
+  getInstallmentsDueOnInvoice,
 } from '../lib/creditCardBilling'
 
 describe('creditCardBilling', () => {
@@ -33,5 +36,96 @@ describe('creditCardBilling', () => {
 
   it('retorna null sem datas configuradas', () => {
     expect(getCreditCardBillingStatus({ closingDay: null, dueDay: 12 })).toEqual({ closing: null, due: null })
+  })
+})
+
+describe('payCreditCardInvoicePlan', () => {
+  const installments = [
+    {
+      id: 'tx1',
+      purchase_type: 'installment',
+      payment_source: 'credit_card',
+      installment_amount: 100,
+      installments_total: 4,
+      installments_paid: 1,
+    },
+    {
+      id: 'tx2',
+      purchase_type: 'installment',
+      payment_source: 'credit_card',
+      installment_amount: 50,
+      installments_total: 3,
+      installments_paid: 3,
+    },
+  ]
+
+  it('debita conta, zera fatura e avança parcelas ativas', () => {
+    const plan = payCreditCardInvoicePlan({
+      accountBalance: 2000,
+      creditCardBalance: 850,
+      activeInstallments: installments,
+    })
+    expect(plan.ok).toBe(true)
+    expect(plan.amount).toBe(850)
+    expect(plan.newAccountBalance).toBe(1150)
+    expect(plan.newCreditCardBalance).toBe(0)
+    expect(plan.installmentUpdates).toEqual([{ id: 'tx1', installments_paid: 2 }])
+  })
+
+  it('rejeita fatura zerada', () => {
+    const plan = payCreditCardInvoicePlan({ accountBalance: 500, creditCardBalance: 0, activeInstallments: [] })
+    expect(plan.ok).toBe(false)
+    expect(plan.error).toMatch(/zerada/)
+  })
+
+  it('rejeita saldo insuficiente na conta', () => {
+    const plan = payCreditCardInvoicePlan({ accountBalance: 100, creditCardBalance: 500, activeInstallments: [] })
+    expect(plan.ok).toBe(false)
+    expect(plan.error).toMatch(/insuficiente/)
+    expect(plan.amount).toBe(500)
+  })
+
+  it('identifica parcelas devidas na fatura', () => {
+    const due = getInstallmentsDueOnInvoice(installments)
+    expect(due).toHaveLength(1)
+    expect(due[0].id).toBe('tx1')
+  })
+})
+
+describe('computeProjectedCreditCardInvoice', () => {
+  const today = new Date(2026, 5, 20) // 20/jun/2026
+
+  it('soma assinaturas, parcelas e compras à vista no ciclo', () => {
+    const result = computeProjectedCreditCardInvoice({
+      closingDay: 5,
+      today,
+      transactions: [
+        {
+          id: 'o1',
+          type: 'expense',
+          description: 'Loja',
+          amount: 120,
+          purchase_type: 'one_off',
+          payment_source: 'credit_card',
+          date: '2026-06-10',
+        },
+      ],
+      activeInstallments: [
+        {
+          id: 'i1',
+          description: 'TV',
+          purchase_type: 'installment',
+          payment_source: 'credit_card',
+          installment_amount: 150,
+          installments_total: 10,
+          installments_paid: 2,
+        },
+      ],
+      recurringExpenses: [
+        { id: 'r1', description: 'Streaming', amount: 45, active: true, payment_source: 'credit_card' },
+      ],
+    })
+    expect(result.items).toHaveLength(3)
+    expect(result.total).toBe(45 + 150 + 120)
   })
 })

@@ -5,6 +5,7 @@ import { Card, CardHeader }  from '../../components/ui/Card'
 import { Button }            from '../../components/ui/Button'
 import { Select }            from '../../components/ui/Select'
 import { Modal }             from '../../components/ui/Modal'
+import { ConfirmDialog }     from '../../components/ui/ConfirmDialog'
 import { Input }             from '../../components/ui/Input'
 import { CurrencyInput }     from '../../components/ui/CurrencyInput'
 import { ChatWidget }        from '../../components/chat/ChatWidget'
@@ -74,8 +75,20 @@ function BalanceCard({ label, value, icon: Icon, onEdit, color = 'brand' }) {
   )
 }
 
-function CreditCardCard({ value, closingDay, dueDay, onEdit }) {
+function CreditCardCard({
+  value,
+  closingDay,
+  dueDay,
+  accountBalance,
+  projectedInvoice,
+  onEdit,
+  onPayInvoice,
+  paying,
+}) {
   const billing = getCreditCardBillingStatus({ closingDay, dueDay })
+  const balance = Number(value) || 0
+  const account = Number(accountBalance) || 0
+  const canPay = balance > 0
 
   return (
     <div className="rounded-3xl p-5 bg-gradient-to-br from-orange-600/15 to-transparent border border-orange-500/15 relative">
@@ -94,12 +107,42 @@ function CreditCardCard({ value, closingDay, dueDay, onEdit }) {
       <p className="text-white/40 text-xs font-medium uppercase tracking-wider mb-1">Cartão de crédito</p>
       <p className="text-xl sm:text-2xl font-semibold text-white mono-number mb-3">{fmt(value)}</p>
       {billing.closing && billing.due ? (
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 mb-3">
           <StatusBar label="Fecha fatura" pct={billing.closing} color="#fb923c" />
           <StatusBar label="Prazo final" pct={billing.due} color="#fbbf24" overdue={billing.due.overdue} />
         </div>
       ) : (
-        <p className="text-[11px] text-white/30">Configure fechamento e vencimento no editar</p>
+        <p className="text-[11px] text-white/30 mb-3">Configure fechamento e vencimento no editar</p>
+      )}
+      {canPay && (
+        <Button
+          size="sm"
+          className="w-full mb-3"
+          loading={paying}
+          onClick={onPayInvoice}
+        >
+          Pagar fatura atual
+        </Button>
+      )}
+      {projectedInvoice?.items?.length > 0 && (
+        <div className="border-t border-white/[0.06] pt-3 mt-1">
+          <p className="text-[10px] text-white/35 uppercase tracking-wide mb-2">Próxima fatura (prevista)</p>
+          <p className="text-sm font-semibold text-orange-300 mono-number mb-2">{fmt(projectedInvoice.total)}</p>
+          <div className="space-y-1.5 max-h-28 overflow-y-auto">
+            {projectedInvoice.items.map(item => (
+              <div key={`${item.kind}-${item.id}`} className="flex items-center justify-between text-[11px] gap-2">
+                <div className="min-w-0">
+                  <p className="text-white/70 truncate">{item.description}{item.store ? ` · ${item.store}` : ''}</p>
+                  <p className="text-white/30">{item.label}</p>
+                </div>
+                <span className="text-orange-300/80 mono-number flex-shrink-0">{fmt(item.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {canPay && account < balance && (
+        <p className="text-[10px] text-red-400/80 mt-2">Saldo em conta insuficiente para pagar a fatura</p>
       )}
     </div>
   )
@@ -212,15 +255,17 @@ function WalletsPanel({ wallets, onAdd, onUpdate, onDelete }) {
 
 export default function Dashboard() {
   const {
-    profile, summary, wallets, walletsIncludedTotal, monthlyDeductions, loading, error,
+    profile, summary, wallets, walletsIncludedTotal, monthlyDeductions, projectedCreditCardInvoice, loading, error,
     month, year, setMonth, setYear,
-    updateBalance, updateCreditCard, addTransaction, addPurchase: savePurchase, addWallet, updateWallet, deleteWallet,
+    updateBalance, updateCreditCard, addTransaction, addPurchase: savePurchase, payCreditCardInvoice,
+    addWallet, updateWallet, deleteWallet,
   } = useFinances()
 
   const [editBalance,    setEditBalance]    = useState(false)
   const [editCard,       setEditCard]       = useState(false)
   const [addTxModal,     setAddTxModal]     = useState(false)
   const [addPurchase,    setAddPurchase]    = useState(false)
+  const [confirmPayCard, setConfirmPayCard] = useState(false)
   const [newBalance,     setNewBalance]     = useState(null)
   const [newCardBalance, setNewCardBalance] = useState(null)
   const [newCardLimit,   setNewCardLimit]   = useState(null)
@@ -266,6 +311,24 @@ export default function Dashboard() {
       toast.success('Cartão atualizado')
     } catch (e) { toast.error(e.message) }
     finally { setSaving(false) }
+  }
+
+  const handlePayInvoice = async () => {
+    setSaving(true)
+    try {
+      const result = await payCreditCardInvoice()
+      setConfirmPayCard(false)
+      const parcels = result.installmentUpdates?.length || 0
+      toast.success(
+        parcels > 0
+          ? `Fatura paga · ${parcels} parcela${parcels === 1 ? '' : 's'} avançada${parcels === 1 ? '' : 's'}`
+          : 'Fatura paga com sucesso',
+      )
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return (
@@ -334,7 +397,11 @@ export default function Dashboard() {
           value={profile?.credit_card_balance}
           closingDay={profile?.credit_card_closing_day}
           dueDay={profile?.credit_card_due_day}
+          accountBalance={accountTotal}
+          projectedInvoice={projectedCreditCardInvoice}
           onEdit={openCardEdit}
+          onPayInvoice={() => setConfirmPayCard(true)}
+          paying={saving && confirmPayCard}
         />
         <BalanceCard label="Saldo líquido" value={netBalance} icon={TrendingUp} color="brand" />
         <BalanceCard label="Saldo projetado" value={projectedBalance} icon={TrendingDown} color="orange" />
@@ -485,6 +552,16 @@ export default function Dashboard() {
           onSave={async (data) => { await savePurchase(data); setAddPurchase(false); toast.success('Compra registrada') }}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={confirmPayCard}
+        onCancel={() => setConfirmPayCard(false)}
+        onConfirm={handlePayInvoice}
+        title="Pagar fatura atual?"
+        message={`Valor da fatura: ${fmt(cardBalance)}. Será debitado da conta (saldo após pagamento: ${fmt(accountTotal - cardBalance)}).`}
+        confirmLabel="Pagar fatura"
+        cancelLabel="Cancelar"
+      />
 
       <ChatWidget />
     </div>

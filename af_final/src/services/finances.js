@@ -4,6 +4,7 @@ import {
   balanceImpactForTransaction,
   balanceImpactForRecurring,
 } from '../lib/balanceImpact'
+import { payCreditCardInvoicePlan } from '../lib/creditCardBilling'
 
 async function getCurrentUserId() {
   const { data: { session }, error } = await supabase.auth.getSession()
@@ -22,11 +23,16 @@ function parseNumeric(value) {
 const PROFILE_BASE_FIELDS =
   'id, name, account_balance, credit_card_balance, credit_card_limit, updated_at'
 const PROFILE_EXTENDED_FIELDS =
-  `${PROFILE_BASE_FIELDS}, credit_card_closing_day, credit_card_due_day`
+  `${PROFILE_BASE_FIELDS}, credit_card_closing_day, credit_card_due_day, credit_card_invoice_paid_at`
 
 function isMissingBillingColumnsError(error) {
   const msg = error?.message ?? ''
   return msg.includes('credit_card_closing_day') || msg.includes('credit_card_due_day')
+}
+
+function isMissingInvoicePaidAtError(error) {
+  const msg = error?.message ?? ''
+  return msg.includes('credit_card_invoice_paid_at')
 }
 
 function normalizeProfile(data) {
@@ -37,6 +43,7 @@ function normalizeProfile(data) {
     credit_card_limit: parseNumeric(data?.credit_card_limit),
     credit_card_closing_day: data?.credit_card_closing_day ?? null,
     credit_card_due_day: data?.credit_card_due_day ?? null,
+    credit_card_invoice_paid_at: data?.credit_card_invoice_paid_at ?? null,
   }
 }
 
@@ -118,6 +125,60 @@ export async function updateCreditCard({ balance, limit, closingDay, dueDay }) {
   }
   if (error) throw error
   return normalizeProfile(data)
+}
+
+/** Paga a fatura atual do cartão: debita conta, zera fatura e avança parcelas. */
+export async function payCreditCardInvoice() {
+  const profile = await getProfile()
+  const activeInstallments = await getActiveInstallments()
+
+  const plan = payCreditCardInvoicePlan({
+    accountBalance: profile.account_balance,
+    creditCardBalance: profile.credit_card_balance,
+    activeInstallments,
+  })
+  if (!plan.ok) throw new Error(plan.error)
+
+  const userId = await getCurrentUserId()
+  const now = new Date().toISOString()
+  const updates = {
+    account_balance: plan.newAccountBalance,
+    credit_card_balance: plan.newCreditCardBalance,
+    credit_card_invoice_paid_at: now,
+    updated_at: now,
+  }
+
+  let { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', userId)
+    .select()
+    .single()
+
+  if (error && isMissingInvoicePaidAtError(error)) {
+    delete updates.credit_card_invoice_paid_at
+    ;({ data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single())
+  }
+  if (error) throw error
+
+  for (const upd of plan.installmentUpdates) {
+    const { error: txErr } = await supabase
+      .from('transactions')
+      .update({ installments_paid: upd.installments_paid, updated_at: now })
+      .eq('id', upd.id)
+    if (txErr) throw txErr
+  }
+
+  return {
+    profile: normalizeProfile(data),
+    amount: plan.amount,
+    installmentUpdates: plan.installmentUpdates,
+  }
 }
 
 // ── Transações ───────────────────────────────────────────────────────────────
