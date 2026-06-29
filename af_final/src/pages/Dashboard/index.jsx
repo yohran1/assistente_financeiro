@@ -383,10 +383,9 @@ export default function Dashboard() {
                 <div className="min-w-0">
                   <p className="text-white truncate">{item.description}{item.store ? ` · ${item.store}` : ''}</p>
                   <p className="text-[11px] text-white/35">
-                    {formatPurchaseLabel(item)}
-                    {item.purchaseType === 'installment' && item.installmentsTotal
-                      ? ` · ${item.installmentsPaid}/${item.installmentsTotal} · ${Number(item.installmentAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/parcela`
-                      : ' · Avulsa'}
+                    {item.purchaseType === 'installment'
+                      ? `${formatPurchaseLabel(item)} · ${Number(item.installmentAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/parcela`
+                      : 'Avulsa'}
                   </p>
                 </div>
                 <span className="text-red-400 mono-number flex-shrink-0 ml-2">
