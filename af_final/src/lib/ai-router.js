@@ -33,6 +33,7 @@ export async function sendToAI(messages, financialContext = {}) {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${session.access_token}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
     body: JSON.stringify({
       messages,
@@ -42,7 +43,7 @@ export async function sendToAI(messages, financialContext = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new Error(error.message || `Erro ${response.status} ao contatar IA`)
+    throw new Error(error.error || error.message || `Erro ${response.status} ao contatar IA`)
   }
 
   const data = await response.json()
