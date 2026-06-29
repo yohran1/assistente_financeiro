@@ -73,6 +73,7 @@ export default function Profile() {
       .catch(() => { if (!cancelled) setBankConnections([]) })
       .finally(() => { if (!cancelled) setLoadingConnections(false) })
     return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
   const refreshBankConnections = async () => {
