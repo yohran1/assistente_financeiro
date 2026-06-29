@@ -589,7 +589,7 @@ export default function Dashboard() {
           label="Investimentos"
           value={investmentBalance}
           positive
-          subtitle={`Mês: ${fmt(summary?.totalInvestments || 0)}`}
+          subtitle={`Movimentação no mês: ${fmt(summary?.totalInvestments || 0)}`}
           actions={[
             { label: 'Adicionar', onClick: () => openTxModal('investment') },
             { label: 'Incluir em receitas', onClick: () => { setQuickAmount(null); setQuickDesc(''); setTransferInvModal(true) } },
@@ -599,7 +599,7 @@ export default function Dashboard() {
           label="Poupança"
           value={savingsBalance}
           positive
-          subtitle={`Mês: ${fmt(summary?.totalSavings || 0)}`}
+          subtitle={`Movimentação no mês: ${fmt(summary?.totalSavings || 0)}`}
           actions={[
             { label: 'Retirar da poupança', onClick: () => { setQuickAmount(null); setQuickDesc(''); setSavingsModal('withdraw') } },
           ]}
