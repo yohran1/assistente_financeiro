@@ -5,27 +5,36 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-const DEFAULT_ORIGINS = Array.from(new Set([
-  'http://localhost:3000',
-  'http://localhost:3001',
-  ...(Deno.env.get('ALLOWED_ORIGIN') || '').split(',').map((origin) => origin.trim()).filter(Boolean),
-]))
+const LOCAL_DEV_ORIGINS = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:3001",
+  "http://127.0.0.1:3001",
+]
+
 const CORS_BASE_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Credentials": "true",
+}
+
+function parseAllowedOrigins(): string[] {
+  const raw = (Deno.env.get("ALLOWED_ORIGIN") || "").trim()
+  if (raw === "*") return ["*"]
+  const fromEnv = raw.split(",").map((origin) => origin.trim()).filter(Boolean)
+  return Array.from(new Set([...LOCAL_DEV_ORIGINS, ...fromEnv]))
+}
+
+function resolveCorsOrigin(requestOrigin?: string): string {
+  const allowed = parseAllowedOrigins()
+  if (allowed.includes("*")) return "*"
+  if (requestOrigin && allowed.includes(requestOrigin)) return requestOrigin
+  return allowed[0] || "*"
 }
 
 function buildCorsHeaders(origin?: string) {
-  const allowedOrigin = origin && DEFAULT_ORIGINS.includes(origin)
-    ? origin
-    : origin && DEFAULT_ORIGINS.length === 0
-      ? origin
-      : DEFAULT_ORIGINS[0]
-
   return {
     ...CORS_BASE_HEADERS,
-    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Origin": resolveCorsOrigin(origin),
   }
 }
 
@@ -50,13 +59,31 @@ function checkRateLimit(userId: string): boolean {
 // por vírgula) com fallback para "<NOME>" (uma só). Permite failover entre
 // chaves reservas quando uma estoura o limite (429) ou falha.
 function getApiKeys(baseName: string): string[] {
+  const keys: string[] = []
   const multi = Deno.env.get(`${baseName}S`) || ""
   const single = Deno.env.get(baseName) || ""
-  const all = `${multi},${single}`
-    .split(",")
-    .map((k) => k.trim())
-    .filter(Boolean)
-  return Array.from(new Set(all))
+  keys.push(
+    ...`${multi},${single}`.split(",").map((k) => k.trim()).filter(Boolean),
+  )
+  for (let i = 2; i <= 5; i++) {
+    const extra = Deno.env.get(`${baseName}_${i}`)
+    if (extra?.trim()) keys.push(extra.trim())
+  }
+  return Array.from(new Set(keys))
+}
+
+function isRetryableProviderError(err: unknown): boolean {
+  const msg = String((err as Error)?.message || err).toLowerCase()
+  return (
+    msg.includes("429") ||
+    msg.includes("503") ||
+    msg.includes("quota") ||
+    msg.includes("rate limit") ||
+    msg.includes("resource_exhausted") ||
+    msg.includes("too many requests") ||
+    msg.includes("error 401") ||
+    msg.includes("error 403")
+  )
 }
 
 // ── Gemini ───────────────────────────────────────────────────
@@ -194,7 +221,13 @@ async function routeAI(messages: any[], context: any): Promise<string> {
       try {
         return await provider.call(provider.keys[i])
       } catch (err) {
-        console.warn(`${provider.name} chave #${i + 1} falhou: ${(err as Error).message}`)
+        const message = (err as Error).message
+        console.warn(`${provider.name} chave #${i + 1} falhou: ${message}`)
+        const hasMoreKeys = i < provider.keys.length - 1
+        const hasFallbackProvider = provider.name === "Gemini" && groqKeys.length > 0
+        if (!isRetryableProviderError(err) && !hasMoreKeys && !hasFallbackProvider) {
+          throw err
+        }
       }
     }
   }
@@ -206,7 +239,7 @@ async function routeAI(messages: any[], context: any): Promise<string> {
 serve(async (req) => {
   const origin = req.headers.get("origin") || undefined
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: buildCorsHeaders(origin) })
+    return new Response(null, { status: 200, headers: buildCorsHeaders(origin) })
   }
 
   if (req.method !== "POST") {
