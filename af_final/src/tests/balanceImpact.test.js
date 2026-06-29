@@ -4,8 +4,10 @@ import {
   balanceImpactForTransaction,
   balanceImpactForRecurring,
   formatPurchaseLabel,
+  formatInstallmentInvoiceStatus,
   purchaseTotalValue,
-  computeMonthlyAccountDeductions,
+  computeCreditCardLimitUsed,
+  computeAvailableCreditLimit,
 } from '../lib/balanceImpact'
 
 describe('balanceImpact', () => {
@@ -16,30 +18,30 @@ describe('balanceImpact', () => {
     expect(balanceDeltaForTransaction({ type: 'expense', amount: 100, purchase_type: 'one_off' })).toBe(-100)
   })
 
-  it('crédito à vista aumenta fatura do cartão', () => {
+  it('crédito à vista aumenta fatura do cartão sem mexer na conta', () => {
     const impact = balanceImpactForTransaction({ type: 'expense', amount: 250, purchase_type: 'one_off', payment_source: 'credit_card' })
     expect(impact.account).toBe(0)
     expect(impact.creditCard).toBe(250)
   })
 
-  it('parcelado no cartão: fatura total + primeira parcela na conta', () => {
+  it('parcelado no cartão: só parcela atual na fatura, conta não muda', () => {
     const impact = balanceImpactForTransaction({
-      type: 'expense', amount: 1000, purchase_type: 'installment', payment_source: 'credit_card',
-      installment_amount: 200, installments_total: 5, installments_paid: 0, in_progress: false,
+      type: 'expense', amount: 6600, purchase_type: 'installment', payment_source: 'credit_card',
+      installment_amount: 550, installments_total: 12, installments_paid: 0,
     })
-    expect(impact.account).toBe(-200)
-    expect(impact.creditCard).toBe(1000)
+    expect(impact.account).toBe(0)
+    expect(impact.creditCard).toBe(550)
   })
 
-  it('parcelado em andamento desconta parcelas já pagas', () => {
-    expect(balanceDeltaForTransaction({
+  it('parcelado em andamento não debita conta', () => {
+    expect(balanceImpactForTransaction({
       type: 'expense', amount: 1000, purchase_type: 'installment', payment_source: 'credit_card',
       installment_amount: 200, installments_total: 5, installments_paid: 3, in_progress: true,
-    })).toBe(-600)
+    })).toEqual({ account: 0, creditCard: 200 })
   })
 
-  it('assinatura na conta debita mensalidade', () => {
-    expect(balanceImpactForRecurring({ amount: 49.9, payment_source: 'account' })).toEqual({ account: -49.9, creditCard: 0 })
+  it('assinatura na conta não debita na criação', () => {
+    expect(balanceImpactForRecurring({ amount: 49.9, payment_source: 'account' })).toEqual({ account: 0, creditCard: 0 })
   })
 
   it('assinatura no cartão aumenta fatura', () => {
@@ -55,25 +57,21 @@ describe('balanceImpact', () => {
     expect(formatPurchaseLabel({ purchase_type: 'one_off', payment_source: 'credit_card' })).toBe('Cartão à vista')
   })
 
+  it('status de parcela na fatura', () => {
+    const tx = { purchase_type: 'installment', installments_paid: 1, installments_total: 5 }
+    expect(formatInstallmentInvoiceStatus(tx, { cardBalance: 200 })).toBe('(não paga)')
+    expect(formatInstallmentInvoiceStatus(tx, { cardBalance: 0 })).toBe('(pago)')
+  })
+
   it('calcula total da compra parcelada', () => {
     expect(purchaseTotalValue({ purchase_type: 'installment', installment_amount: 200, installments_total: 5 })).toBe(1000)
   })
 
-  it('computa descontos mensais da conta', () => {
-    const result = computeMonthlyAccountDeductions({
-      month: 6,
-      year: 2026,
-      transactions: [
-        { id: '1', type: 'expense', description: 'Mercado', amount: 80, purchase_type: 'one_off', payment_source: 'account', date: '2026-06-10' },
-      ],
-      activeInstallments: [
-        { id: '2', type: 'expense', description: 'TV', purchase_type: 'installment', payment_source: 'credit_card', installment_amount: 150, installments_total: 10, installments_paid: 2 },
-      ],
-      recurringExpenses: [
-        { id: '3', description: 'Netflix', amount: 45, active: true, payment_source: 'account' },
-      ],
-    })
-    expect(result.items).toHaveLength(3)
-    expect(result.total).toBe(80 + 150 + 45)
+  it('calcula limite comprometido e disponível', () => {
+    const installments = [
+      { purchase_type: 'installment', payment_source: 'credit_card', installment_amount: 550, installments_total: 12, installments_paid: 0 },
+    ]
+    expect(computeCreditCardLimitUsed(installments)).toBe(6600)
+    expect(computeAvailableCreditLimit(10000, installments)).toBe(3400)
   })
 })

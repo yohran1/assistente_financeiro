@@ -10,6 +10,7 @@ import {
   getActiveInstallments,
   updateAccountBalance,
   updateCreditCard,
+  payCreditCardInvoice,
   addTransaction,
   addPurchase,
   updateTransaction,
@@ -18,7 +19,8 @@ import {
   updateWallet,
   deleteWallet,
 } from '../services/finances'
-import { computeMonthlyAccountDeductions } from '../lib/balanceImpact'
+import { computeAvailableCreditLimit } from '../lib/balanceImpact'
+import { computeProjectedCreditCardInvoice, isNextInvoicePreviewEligible } from '../lib/creditCardBilling'
 
 export function useFinances() {
   const [profile, setProfile] = useState(null)
@@ -27,6 +29,7 @@ export function useFinances() {
   const [categories, setCategories] = useState([])
   const [recurringExpenses, setRecurringExpenses] = useState([])
   const [activeInstallments, setActiveInstallments] = useState([])
+  const [recentTransactions, setRecentTransactions] = useState([])
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -39,7 +42,7 @@ export function useFinances() {
     try {
       setLoading(true)
       setError(null)
-      const [p, t, s, c, r, w, inst] = await Promise.all([
+      const [p, t, s, c, r, w, inst, recent] = await Promise.all([
         getProfile(),
         getTransactions({ month, year }),
         getFinancialSummary(month, year),
@@ -47,6 +50,7 @@ export function useFinances() {
         getRecurringExpenses(),
         getWallets(),
         getActiveInstallments(),
+        getTransactions({ limit: 150 }),
       ])
       setProfile(p)
       setTransactions(t)
@@ -55,6 +59,7 @@ export function useFinances() {
       setRecurringExpenses(r)
       setWallets(w)
       setActiveInstallments(inst)
+      setRecentTransactions(recent)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -143,17 +148,42 @@ export function useFinances() {
     return result
   }
 
+  const handlePayCreditCardInvoice = async () => {
+    const result = await payCreditCardInvoice()
+    setProfile(prev => ({
+      ...prev,
+      account_balance: Number(result.profile.account_balance) || 0,
+      credit_card_balance: Number(result.profile.credit_card_balance) || 0,
+      credit_card_invoice_paid_at: result.profile.credit_card_invoice_paid_at ?? null,
+    }))
+    await loadAll()
+    return result
+  }
+
   const walletsIncludedTotal = wallets
     .filter(w => w.include_in_total)
     .reduce((sum, w) => sum + (Number(w.balance) || 0), 0)
 
-  const monthlyDeductions = computeMonthlyAccountDeductions({
-    transactions,
-    activeInstallments,
-    recurringExpenses,
-    month,
-    year,
+  const closingDay = profile?.credit_card_closing_day
+  const showNextInvoicePreview = isNextInvoicePreviewEligible({
+    closingDay,
+    creditCardBalance: profile?.credit_card_balance,
+    invoicePaidAt: profile?.credit_card_invoice_paid_at,
   })
+  const projectedCreditCardInvoice = closingDay && showNextInvoicePreview
+    ? computeProjectedCreditCardInvoice({
+        transactions: recentTransactions,
+        activeInstallments,
+        recurringExpenses,
+        closingDay,
+        baseBalance: 0,
+      })
+    : { items: [], total: 0 }
+
+  const availableCreditLimit = computeAvailableCreditLimit(
+    profile?.credit_card_limit,
+    activeInstallments,
+  )
 
   return {
     profile,
@@ -162,7 +192,8 @@ export function useFinances() {
     categories,
     recurringExpenses,
     activeInstallments,
-    monthlyDeductions,
+    projectedCreditCardInvoice,
+    availableCreditLimit,
     wallets,
     walletsIncludedTotal,
     loading,
@@ -176,6 +207,7 @@ export function useFinances() {
     updateCreditCard: handleUpdateCreditCard,
     addTransaction: handleAddTransaction,
     addPurchase: handleAddPurchase,
+    payCreditCardInvoice: handlePayCreditCardInvoice,
     updateTransaction: handleUpdateTransaction,
     deleteTransaction: handleDeleteTransaction,
     addWallet: handleAddWallet,

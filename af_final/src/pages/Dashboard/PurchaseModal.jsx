@@ -30,7 +30,7 @@ const PURCHASE_KINDS = [
     icon: Layers,
     title: 'Parcelado',
     subtitle: 'No cartão',
-    desc: 'Compromete o limite/fatura; parcela mensal sai da conta.',
+    desc: 'Primeira parcela entra na fatura; compromete o limite. Conta não muda na compra.',
   },
   {
     id: 'subscription',
