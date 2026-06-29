@@ -12,13 +12,15 @@ export const Select = forwardRef(({
   hint,
   children,
   className = '',
+  wrapperClassName = '',
   icon: Icon,
+  compact = false,
   ...props
 }, ref) => {
   const selectId = useId()
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={`flex flex-col gap-1.5 ${wrapperClassName}`}>
       {label && (
         <label htmlFor={selectId} className="text-sm font-medium text-white/70 select-none">
           {label}
@@ -34,13 +36,15 @@ export const Select = forwardRef(({
           ref={ref}
           id={selectId}
           className={`
-            w-full py-3 rounded-xl min-h-[48px]
+            w-full rounded-xl
             bg-white/[0.05] border border-white/10
             text-white
             transition-all duration-200
             cursor-pointer
             focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40
             disabled:opacity-40 disabled:cursor-not-allowed
+            bg-[length:0_0] [background-image:none]
+            ${compact ? 'py-2 min-h-[40px] text-sm' : 'py-3 min-h-[48px]'}
             ${error ? 'border-red-500/50 focus:ring-red-500/30' : ''}
             ${Icon ? 'pl-10 pr-10' : 'pl-4 pr-10'}
             ${className}
@@ -52,7 +56,7 @@ export const Select = forwardRef(({
           {children}
         </select>
         {/* Seta customizada — funciona em todos os browsers */}
-        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
+        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-white/40 z-10">
           <ChevronDown size={15} aria-hidden="true" />
         </div>
       </div>

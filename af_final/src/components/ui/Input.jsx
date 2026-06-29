@@ -25,7 +25,7 @@ export const Input = forwardRef(({
       )}
       <div className="relative">
         {Icon && (
-          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none">
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none z-10">
             <Icon size={16} aria-hidden="true" />
           </div>
         )}
@@ -47,7 +47,8 @@ export const Input = forwardRef(({
             focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/40
             disabled:opacity-40 disabled:cursor-not-allowed
             ${error ? 'border-red-500/50 focus:ring-red-500/30 focus:border-red-500/50' : ''}
-            ${Icon        ? 'pl-10 pr-4' : 'px-4'}
+            ${Icon ? 'pl-10 pr-4' : 'px-4'}
+            ${type === 'date' ? '!pr-10' : ''}
             ${isPassword || rightElement ? '!pr-12' : ''}
             ${className}
           `}

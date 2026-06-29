@@ -3,6 +3,7 @@ import { Pencil, TrendingUp, TrendingDown, Wallet, CreditCard, Plus, Calendar, T
 import { useFinances }       from '../../hooks/useFinances'
 import { Card, CardHeader }  from '../../components/ui/Card'
 import { Button }            from '../../components/ui/Button'
+import { Select }            from '../../components/ui/Select'
 import { Modal }             from '../../components/ui/Modal'
 import { Input }             from '../../components/ui/Input'
 import { CurrencyInput }     from '../../components/ui/CurrencyInput'
@@ -296,20 +297,23 @@ export default function Dashboard() {
           <p className="text-white/40 text-sm mt-0.5 capitalize">{monthName}</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
-            <select
-              value={`${year}-${month}`}
-              onChange={(e) => { const [y,m] = e.target.value.split('-'); setYear(+y); setMonth(+m) }}
-              aria-label="Selecionar mês"
-              className="pl-8 text-sm"
-            >
-              {Array.from({ length: 12 }, (_, i) => {
-                const d = new Date(year, i)
-                return <option key={i} value={`${year}-${i+1}`}>{d.toLocaleString('pt-BR', { month: 'long' })}</option>
-              })}
-            </select>
-          </div>
+          <Select
+            icon={Calendar}
+            compact
+            value={`${year}-${month}`}
+            onChange={(e) => { const [y,m] = e.target.value.split('-'); setYear(+y); setMonth(+m) }}
+            aria-label="Selecionar mês"
+            className="w-auto min-w-[10.5rem] sm:min-w-[11.5rem]"
+          >
+            {Array.from({ length: 12 }, (_, i) => {
+              const d = new Date(year, i)
+              return (
+                <option key={i} value={`${year}-${i+1}`}>
+                  {d.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
+                </option>
+              )
+            })}
+          </Select>
           <Button onClick={() => setAddPurchase(true)} size="md" variant="secondary">
             <Plus size={15} aria-hidden="true" />
             <span className="hidden sm:inline">Adicionar compra</span>
