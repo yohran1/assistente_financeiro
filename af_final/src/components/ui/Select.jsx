@@ -26,10 +26,10 @@ export const Select = forwardRef(({
           {label}
         </label>
       )}
-      <div className="relative isolate">
+      <div className="relative isolate overflow-hidden">
         {Icon && (
-          <span className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-center text-white/30">
-            <Icon size={15} aria-hidden="true" />
+          <span className="pointer-events-none absolute left-0 top-0 z-10 flex h-full w-10 shrink-0 items-center justify-center text-white/30">
+            <Icon size={15} className="shrink-0" aria-hidden="true" />
           </span>
         )}
         <select
@@ -41,7 +41,7 @@ export const Select = forwardRef(({
             text-white
             transition-colors duration-200
             cursor-pointer
-            focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/40 focus:border-brand-500/40
+            focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/40 focus:border-brand-500/40 focus:shadow-none
             disabled:opacity-40 disabled:cursor-not-allowed
             bg-[length:0_0] [background-image:none]
             ${compact ? 'py-2 min-h-[40px] text-sm' : 'py-3 min-h-[48px]'}
@@ -56,7 +56,7 @@ export const Select = forwardRef(({
           {children}
         </select>
         {/* Seta customizada — funciona em todos os browsers */}
-        <div className="absolute inset-y-0 right-0 z-10 flex w-10 items-center justify-center pointer-events-none text-white/40">
+        <div className="absolute inset-y-0 right-0 z-10 flex w-10 shrink-0 items-center justify-center pointer-events-none text-white/40">
           <ChevronDown size={15} aria-hidden="true" />
         </div>
       </div>

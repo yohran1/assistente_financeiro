@@ -1,6 +1,9 @@
 import { supabase } from '../lib/supabase'
 import DOMPurify from 'dompurify'
-import { balanceDeltaForTransaction } from '../lib/balanceImpact'
+import {
+  balanceImpactForTransaction,
+  balanceImpactForRecurring,
+} from '../lib/balanceImpact'
 
 async function getCurrentUserId() {
   const { data: { session }, error } = await supabase.auth.getSession()
@@ -122,11 +125,16 @@ export async function updateCreditCard({ balance, limit, closingDay, dueDay }) {
 const TX_BASE_FIELDS =
   'id, description, amount, type, category_id, date, created_at'
 const TX_EXTENDED_FIELDS =
-  `${TX_BASE_FIELDS}, store, purchase_type, installments_total, installments_paid, installment_amount, in_progress`
+  `${TX_BASE_FIELDS}, store, purchase_type, payment_source, installments_total, installments_paid, installment_amount, in_progress`
 
 function isMissingPurchaseColumnsError(error) {
   const msg = error?.message ?? ''
   return msg.includes('purchase_type') || msg.includes('installment_amount') || msg.includes('store')
+}
+
+function isMissingPaymentSourceError(error) {
+  const msg = error?.message ?? ''
+  return msg.includes('payment_source')
 }
 
 function normalizeTransaction(row) {
@@ -136,16 +144,41 @@ function normalizeTransaction(row) {
     amount: parseNumeric(row.amount),
     installment_amount: row.installment_amount != null ? parseNumeric(row.installment_amount) : null,
     purchase_type: row.purchase_type ?? 'one_off',
+    payment_source: row.payment_source ?? 'account',
     installments_paid: row.installments_paid ?? 0,
     in_progress: !!row.in_progress,
   }
 }
 
-async function applyBalanceDelta(delta) {
-  if (!delta || delta === 0) return null
+async function applyBalanceImpacts({ account = 0, creditCard = 0 } = {}) {
+  if (!account && !creditCard) return null
   const profile = await getProfile()
-  const next = parseNumeric(profile.account_balance) + delta
-  return updateAccountBalance(next)
+  const updates = { updated_at: new Date().toISOString() }
+  if (account) updates.account_balance = parseNumeric(profile.account_balance) + account
+  if (creditCard) updates.credit_card_balance = parseNumeric(profile.credit_card_balance) + creditCard
+
+  const userId = await getCurrentUserId()
+  let { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', userId)
+    .select()
+    .single()
+
+  if (error && isMissingBillingColumnsError(error)) {
+    delete updates.credit_card_closing_day
+    delete updates.credit_card_due_day
+    ;({ data, error } = await supabase.from('profiles').update(updates).eq('id', userId).select().single())
+  }
+  if (error) throw error
+  return normalizeProfile(data)
+}
+
+function diffBalanceImpact(before, after) {
+  return {
+    account: after.account - before.account,
+    creditCard: after.creditCard - before.creditCard,
+  }
 }
 
 async function fetchTransactionById(id) {
@@ -160,7 +193,7 @@ async function fetchTransactionById(id) {
 function buildTransactionInsert(userId, fields) {
   const {
     description, amount, type, categoryId, date,
-    store, purchaseType, installmentsTotal, installmentsPaid,
+    store, purchaseType, paymentSource, installmentsTotal, installmentsPaid,
     installmentAmount, inProgress,
   } = fields
 
@@ -175,6 +208,7 @@ function buildTransactionInsert(userId, fields) {
 
   if (store) row.store = DOMPurify.sanitize(store.trim())
   if (purchaseType) row.purchase_type = purchaseType
+  if (paymentSource) row.payment_source = paymentSource
   if (installmentsTotal != null) row.installments_total = parseInt(installmentsTotal, 10)
   if (installmentsPaid != null) row.installments_paid = parseInt(installmentsPaid, 10)
   if (installmentAmount != null) row.installment_amount = parseFloat(installmentAmount)
@@ -239,8 +273,55 @@ export async function addTransaction(fields) {
   if (error) throw error
 
   const tx = normalizeTransaction(data)
-  await applyBalanceDelta(balanceDeltaForTransaction(tx))
+  const impact = balanceImpactForTransaction(tx)
+  await applyBalanceImpacts(impact)
   return tx
+}
+
+/** Fluxo unificado de compra (à vista, cartão, parcelado, assinatura). */
+export async function addPurchase(fields) {
+  if (fields.isSubscription) {
+    return addRecurringExpense({
+      description: fields.description,
+      amount: fields.amount,
+      categoryId: fields.categoryId,
+      dayOfMonth: fields.dayOfMonth,
+      paymentSource: fields.paymentSource || 'account',
+    })
+  }
+  return addTransaction({
+    description: fields.description,
+    amount: fields.amount,
+    type: 'expense',
+    categoryId: fields.categoryId,
+    date: fields.date,
+    store: fields.store,
+    purchaseType: fields.purchaseType,
+    paymentSource: fields.paymentSource,
+    installmentsTotal: fields.installmentsTotal,
+    installmentsPaid: fields.installmentsPaid,
+    installmentAmount: fields.installmentAmount,
+    inProgress: fields.inProgress,
+  })
+}
+
+export async function getActiveInstallments() {
+  let { data, error } = await supabase
+    .from('transactions')
+    .select(TX_EXTENDED_FIELDS)
+    .eq('type', 'expense')
+    .eq('purchase_type', 'installment')
+
+  if (error && isMissingPurchaseColumnsError(error)) return []
+  if (error) throw error
+
+  return (data || [])
+    .map(normalizeTransaction)
+    .filter(tx => {
+      const paid = tx.installments_paid ?? 0
+      const total = tx.installments_total ?? 0
+      return total > 0 && paid < total
+    })
 }
 
 export async function updateTransaction(id, updates) {
@@ -258,6 +339,7 @@ export async function updateTransaction(id, updates) {
   if (updates.date) clean.date = updates.date
   if (updates.store !== undefined) clean.store = updates.store ? DOMPurify.sanitize(updates.store.trim()) : null
   if (updates.purchaseType) clean.purchase_type = updates.purchaseType
+  if (updates.paymentSource) clean.payment_source = updates.paymentSource
   if (updates.installmentsTotal !== undefined) clean.installments_total = parseInt(updates.installmentsTotal, 10)
   if (updates.installmentsPaid !== undefined) clean.installments_paid = parseInt(updates.installmentsPaid, 10)
   if (updates.installmentAmount !== undefined) clean.installment_amount = parseFloat(updates.installmentAmount)
@@ -278,8 +360,11 @@ export async function updateTransaction(id, updates) {
   if (error) throw error
 
   const newTx = normalizeTransaction(data)
-  const delta = balanceDeltaForTransaction(newTx) - balanceDeltaForTransaction(oldTx)
-  await applyBalanceDelta(delta)
+  const delta = diffBalanceImpact(
+    balanceImpactForTransaction(oldTx),
+    balanceImpactForTransaction(newTx),
+  )
+  await applyBalanceImpacts(delta)
   return newTx
 }
 
@@ -287,7 +372,8 @@ export async function deleteTransaction(id) {
   const oldTx = await fetchTransactionById(id)
   const { error } = await supabase.from('transactions').delete().eq('id', id)
   if (error) throw error
-  await applyBalanceDelta(-balanceDeltaForTransaction(oldTx))
+  const impact = balanceImpactForTransaction(oldTx)
+  await applyBalanceImpacts({ account: -impact.account, creditCard: -impact.creditCard })
 }
 
 // ── Gastos Recorrentes ───────────────────────────────────────────────────────
@@ -301,7 +387,7 @@ export async function getRecurringExpenses() {
   return data
 }
 
-export async function addRecurringExpense({ description, amount, categoryId, dayOfMonth }) {
+export async function addRecurringExpense({ description, amount, categoryId, dayOfMonth, paymentSource = 'account' }) {
   const cleanDesc = DOMPurify.sanitize(description.trim())
   const amt = parseFloat(amount)
   const day = parseInt(dayOfMonth)
@@ -309,26 +395,43 @@ export async function addRecurringExpense({ description, amount, categoryId, day
   if (!cleanDesc) throw new Error('Descrição obrigatória')
   if (isNaN(amt) || amt <= 0) throw new Error('Valor deve ser positivo')
   if (isNaN(day) || day < 1 || day > 31) throw new Error('Dia inválido (1-31)')
+  if (!['account', 'credit_card'].includes(paymentSource)) throw new Error('Origem de pagamento inválida')
 
   const userId = await getCurrentUserId()
-  const { data, error } = await supabase
-    .from('recurring_expenses')
-    .insert({
-      user_id: userId,
-      description: cleanDesc,
-      amount: amt,
-      category_id: categoryId || null,
-      day_of_month: day,
-    })
-    .select()
-    .single()
+  const insertRow = {
+    user_id: userId,
+    description: cleanDesc,
+    amount: amt,
+    category_id: categoryId || null,
+    day_of_month: day,
+    payment_source: paymentSource,
+  }
+
+  let { data, error } = await supabase.from('recurring_expenses').insert(insertRow).select().single()
+  if (error && isMissingPaymentSourceError(error)) {
+    delete insertRow.payment_source
+    ;({ data, error } = await supabase.from('recurring_expenses').insert(insertRow).select().single())
+  }
   if (error) throw error
-  return data
+
+  const normalized = { ...data, payment_source: data.payment_source ?? paymentSource }
+  await applyBalanceImpacts(balanceImpactForRecurring(normalized))
+  return normalized
 }
 
 export async function deleteRecurringExpense(id) {
+  const { data: existing, error: fetchErr } = await supabase
+    .from('recurring_expenses')
+    .select('*')
+    .eq('id', id)
+    .single()
+  if (fetchErr) throw fetchErr
+
   const { error } = await supabase.from('recurring_expenses').delete().eq('id', id)
   if (error) throw error
+
+  const impact = balanceImpactForRecurring(existing)
+  await applyBalanceImpacts({ account: -impact.account, creditCard: -impact.creditCard })
 }
 
 // ── Categorias ───────────────────────────────────────────────────────────────
@@ -419,6 +522,7 @@ function buildSummaryFromRows(rows) {
         description: t.description,
         store: t.store,
         purchaseType: t.purchase_type ?? 'one_off',
+        paymentSource: t.payment_source ?? 'account',
         amount,
         installmentAmount: t.installment_amount,
         installmentsTotal: t.installments_total,

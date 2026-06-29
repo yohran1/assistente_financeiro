@@ -212,9 +212,9 @@ function WalletsPanel({ wallets, onAdd, onUpdate, onDelete }) {
 
 export default function Dashboard() {
   const {
-    profile, summary, wallets, walletsIncludedTotal, loading, error,
+    profile, summary, wallets, walletsIncludedTotal, monthlyDeductions, loading, error,
     month, year, setMonth, setYear,
-    updateBalance, updateCreditCard, addTransaction, addWallet, updateWallet, deleteWallet,
+    updateBalance, updateCreditCard, addTransaction, addPurchase: savePurchase, addWallet, updateWallet, deleteWallet,
   } = useFinances()
 
   const [editBalance,    setEditBalance]    = useState(false)
@@ -228,9 +228,10 @@ export default function Dashboard() {
   const [newDueDay,      setNewDueDay]      = useState('')
   const [saving,         setSaving]         = useState(false)
 
-  // Saldo líquido = conta (+ sub-carteiras ON) − cartão
   const accountTotal = (Number(profile?.account_balance) || 0) + walletsIncludedTotal
-  const netBalance = accountTotal - (Number(profile?.credit_card_balance) || 0)
+  const cardBalance = Number(profile?.credit_card_balance) || 0
+  const netBalance = accountTotal - cardBalance
+  const projectedBalance = accountTotal - (monthlyDeductions?.total || 0)
   const monthName  = new Date(year, month - 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
 
   const openCardEdit = () => {
@@ -314,20 +315,20 @@ export default function Dashboard() {
               )
             })}
           </Select>
-          <Button onClick={() => setAddPurchase(true)} size="md" variant="secondary">
+          <Button onClick={() => setAddPurchase(true)} size="md">
             <Plus size={15} aria-hidden="true" />
             <span className="hidden sm:inline">Adicionar compra</span>
+            <span className="sm:hidden">Compra</span>
           </Button>
-          <Button onClick={() => setAddTxModal(true)} size="md">
+          <Button onClick={() => setAddTxModal(true)} size="md" variant="secondary" className="hidden sm:inline-flex">
             <Plus size={15} aria-hidden="true" />
-            <span className="hidden sm:inline">Nova transação</span>
-            <span className="sm:hidden">Nova</span>
+            Receita / outro
           </Button>
         </div>
       </div>
 
       {/* Cards de saldo */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <BalanceCard label="Saldo em conta" value={accountTotal} icon={Wallet} color="emerald" onEdit={() => { setNewBalance(profile?.account_balance); setEditBalance(true) }} />
         <CreditCardCard
           value={profile?.credit_card_balance}
@@ -336,7 +337,11 @@ export default function Dashboard() {
           onEdit={openCardEdit}
         />
         <BalanceCard label="Saldo líquido" value={netBalance} icon={TrendingUp} color="brand" />
+        <BalanceCard label="Saldo projetado" value={projectedBalance} icon={TrendingDown} color="orange" />
       </div>
+      <p className="text-[11px] text-white/30 mb-4 -mt-2">
+        Saldo líquido = conta − fatura do cartão · Saldo projetado = conta − (à vista conta + parcelas do mês + assinaturas ativas na conta)
+      </p>
 
       <WalletsPanel
         wallets={wallets}
@@ -375,11 +380,33 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {monthlyDeductions?.items?.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-white">Descontos da conta neste mês</h2>
+            <p className="text-xs text-white/30">
+              Total comprometido: {fmt(monthlyDeductions.total)} · usado no saldo projetado
+            </p>
+          </CardHeader>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {monthlyDeductions.items.map(item => (
+              <div key={`${item.kind}-${item.id}`} className="flex items-center justify-between text-sm py-2 border-b border-white/[0.04] last:border-0">
+                <div className="min-w-0">
+                  <p className="text-white truncate">{item.description}{item.store ? ` · ${item.store}` : ''}</p>
+                  <p className="text-[11px] text-white/35">{item.label}</p>
+                </div>
+                <span className="text-red-400 mono-number flex-shrink-0 ml-2">-{fmt(item.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {summary?.items?.length > 0 && (
         <Card className="mb-6">
           <CardHeader>
             <h2 className="text-sm font-semibold text-white">Gastos do mês (detalhe)</h2>
-            <p className="text-xs text-white/30">Avulsas e parceladas — valores já descontam do saldo em conta</p>
+            <p className="text-xs text-white/30">Todas as despesas registradas no período</p>
           </CardHeader>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {summary.items.map(item => (
@@ -389,7 +416,7 @@ export default function Dashboard() {
                   <p className="text-[11px] text-white/35">
                     {item.purchaseType === 'installment'
                       ? `${formatPurchaseLabel(item)} · ${Number(item.installmentAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/parcela`
-                      : 'Avulsa'}
+                      : item.paymentSource === 'credit_card' ? 'Cartão à vista' : 'À vista (conta)'}
                   </p>
                 </div>
                 <span className="text-red-400 mono-number flex-shrink-0 ml-2">
@@ -455,7 +482,7 @@ export default function Dashboard() {
       {addPurchase && (
         <PurchaseModal
           onClose={() => setAddPurchase(false)}
-          onSave={async (data) => { await addTransaction(data); setAddPurchase(false); toast.success('Compra registrada') }}
+          onSave={async (data) => { await savePurchase(data); setAddPurchase(false); toast.success('Compra registrada') }}
         />
       )}
 
