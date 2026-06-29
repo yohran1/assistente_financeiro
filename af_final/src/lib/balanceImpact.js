@@ -200,3 +200,19 @@ export function purchaseTotalValue(tx) {
   const n = parseInt(installmentsTotalOf(tx), 10) || 1
   return per * n
 }
+
+/** Lista parcelas 1..N com valor e status pago/pendente. */
+export function getInstallmentSchedule(tx) {
+  const total = parseInt(installmentsTotalOf(tx), 10) || 0
+  if (total <= 0) return []
+  const paid = parseInt(installmentsPaidOf(tx), 10) || 0
+  const amount = Number(tx?.installment_amount ?? tx?.installmentAmount) || 0
+  return Array.from({ length: total }, (_, i) => {
+    const number = i + 1
+    return {
+      number,
+      amount,
+      paid: paid >= number,
+    }
+  })
+}

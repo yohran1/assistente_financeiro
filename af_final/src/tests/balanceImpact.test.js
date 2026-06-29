@@ -8,6 +8,7 @@ import {
   purchaseTotalValue,
   computeCreditCardLimitUsed,
   computeAvailableCreditLimit,
+  getInstallmentSchedule,
 } from '../lib/balanceImpact'
 
 describe('balanceImpact', () => {
@@ -73,5 +74,18 @@ describe('balanceImpact', () => {
     ]
     expect(computeCreditCardLimitUsed(installments)).toBe(6600)
     expect(computeAvailableCreditLimit(10000, installments)).toBe(3400)
+  })
+
+  it('monta cronograma de parcelas com status', () => {
+    const schedule = getInstallmentSchedule({
+      installments_total: 4,
+      installments_paid: 2,
+      installment_amount: 150,
+    })
+    expect(schedule).toHaveLength(4)
+    expect(schedule[0]).toEqual({ number: 1, amount: 150, paid: true })
+    expect(schedule[1]).toEqual({ number: 2, amount: 150, paid: true })
+    expect(schedule[2]).toEqual({ number: 3, amount: 150, paid: false })
+    expect(schedule[3]).toEqual({ number: 4, amount: 150, paid: false })
   })
 })
