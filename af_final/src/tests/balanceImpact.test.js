@@ -20,9 +20,14 @@ describe('balanceImpact', () => {
     })).toBe(-600)
   })
 
-  it('formata label parcelada (camelCase)', () => {
+  it('formata label parcelada (camelCase — summary.items)', () => {
     expect(formatPurchaseLabel({ purchaseType: 'installment', installmentsPaid: 3, installmentsTotal: 5 }))
       .toBe('Parcelada 3/5')
+  })
+
+  it('formata label parcelada (snake_case — DB/transactions)', () => {
+    expect(formatPurchaseLabel({ purchase_type: 'installment', installments_paid: 2, installments_total: 6 }))
+      .toBe('Parcelada 2/6')
   })
 
   it('calcula total da compra parcelada', () => {
