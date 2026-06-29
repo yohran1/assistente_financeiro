@@ -20,8 +20,8 @@ describe('balanceImpact', () => {
     })).toBe(-600)
   })
 
-  it('formata label parcelada', () => {
-    expect(formatPurchaseLabel({ purchase_type: 'installment', installments_paid: 3, installments_total: 5 }))
+  it('formata label parcelada (camelCase)', () => {
+    expect(formatPurchaseLabel({ purchaseType: 'installment', installmentsPaid: 3, installmentsTotal: 5 }))
       .toBe('Parcelada 3/5')
   })
 
