@@ -1,0 +1,7 @@
+{
+  "title": "feat(credit-card): fechamento, vencimento e barras de status",
+  "head": "cursor/phase-a-credit-card-billing",
+  "base": "main",
+  "draft": true,
+  "body": "## Summary\n- Fase A: datas de fechamento/vencimento do cartão + barras de status no Dashboard\n- Migration `002_credit_card_billing.sql`: colunas `credit_card_closing_day` e `credit_card_due_day` em `profiles`\n- Lógica de ciclo de fatura em `creditCardBilling.js` com testes Vitest\n\n## Test plan\n- [ ] Rodar migration 002 no Supabase de produção\n- [ ] `npm run lint` e `npm run test`\n- [ ] Editar cartão: informar fechamento (ex. 5) e vencimento (ex. 12)\n- [ ] Verificar barras \"Fecha fatura\" e \"Prazo final\" no card do cartão\n\n## Nota\nAntes do merge, aplicar a migration no Supabase. O commit `2962a52` inclui arquivos locais (`.refact/buddy`, `.vscode`) — podem ser revertidos antes do merge se desejado."
+}
