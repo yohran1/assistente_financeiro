@@ -24,7 +24,7 @@ const TYPES = [
   { value: 'saving',     label: '🐷 Poupança',     activeClass: 'border-blue-500 bg-blue-500/15 text-blue-300'          },
 ]
 
-export function TransactionModal({ onClose, onSave }) {
+export function TransactionModal({ onClose, onSave, defaultType = 'expense' }) {
   const { categories, profile, walletsIncludedTotal } = useFinances()
   const [amount,     setAmount]     = useState(null)
   const [categoryId, setCategoryId] = useState('')
@@ -33,7 +33,7 @@ export function TransactionModal({ onClose, onSave }) {
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { type: 'expense', date: new Date().toISOString().split('T')[0] },
+    defaultValues: { type: defaultType, date: new Date().toISOString().split('T')[0] },
   })
 
   const selectedType = watch('type')

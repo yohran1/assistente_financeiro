@@ -46,7 +46,7 @@ function StatusBar({ label, pct, color, overdue }) {
   )
 }
 
-function BalanceCard({ label, value, icon: Icon, onEdit, color = 'brand' }) {
+function BalanceCard({ label, value, icon: Icon, onEdit, onAction, actionLabel, color = 'brand' }) {
   const palettes = {
     brand:   { card: 'from-brand-600/15 to-transparent border-brand-500/15', icon: 'bg-brand-500/15 text-brand-400' },
     emerald: { card: 'from-emerald-600/15 to-transparent border-emerald-500/15', icon: 'bg-emerald-500/15 text-emerald-400' },
@@ -59,15 +59,26 @@ function BalanceCard({ label, value, icon: Icon, onEdit, color = 'brand' }) {
         <div className={`w-9 h-9 rounded-2xl flex items-center justify-center ${p.icon}`}>
           <Icon size={18} aria-hidden="true" />
         </div>
-        {onEdit && (
-          <button
-            onClick={onEdit}
-            aria-label={`Editar ${label}`}
-            className="p-2 -mt-1 -mr-1 rounded-xl hover:bg-white/10 text-white/25 hover:text-white/60 transition-all touch-press"
-          >
-            <Pencil size={13} />
-          </button>
-        )}
+        <div className="flex items-center gap-1 -mt-1 -mr-1">
+          {onAction && (
+            <button
+              type="button"
+              onClick={onAction}
+              className="px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-emerald-300 bg-emerald-500/15 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all touch-press"
+            >
+              {actionLabel}
+            </button>
+          )}
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              aria-label={`Editar ${label}`}
+              className="p-2 rounded-xl hover:bg-white/10 text-white/25 hover:text-white/60 transition-all touch-press"
+            >
+              <Pencil size={13} />
+            </button>
+          )}
+        </div>
       </div>
       <p className="text-white/40 text-xs font-medium uppercase tracking-wider mb-1">{label}</p>
       <p className="text-xl sm:text-2xl font-semibold text-white mono-number">{fmt(value)}</p>
@@ -160,19 +171,40 @@ function CreditCardCard({
   )
 }
 
-function StatCard({ label, value, positive }) {
+function StatCard({ label, value, positive, subtitle, actions = [] }) {
   return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3.5">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        {positive
-          ? <TrendingUp  size={13} className="text-emerald-400 flex-shrink-0" />
-          : <TrendingDown size={13} className="text-red-400 flex-shrink-0" />
-        }
-        <span className="text-xs text-white/40 truncate">{label}</span>
+    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-3.5 flex flex-col gap-2">
+      <div>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          {positive
+            ? <TrendingUp  size={13} className="text-emerald-400 flex-shrink-0" />
+            : <TrendingDown size={13} className="text-red-400 flex-shrink-0" />
+          }
+          <span className="text-xs text-white/40 truncate">{label}</span>
+        </div>
+        <p className={`text-base font-semibold mono-number ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
+          {fmt(value)}
+        </p>
+        {subtitle && <p className="text-[10px] text-white/30 mt-0.5">{subtitle}</p>}
       </div>
-      <p className={`text-base font-semibold mono-number ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
-        {fmt(value)}
-      </p>
+      {actions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
+          {actions.map(({ label: btnLabel, onClick, variant = 'secondary' }) => (
+            <button
+              key={btnLabel}
+              type="button"
+              onClick={onClick}
+              className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-all touch-press ${
+                variant === 'danger'
+                  ? 'text-red-300 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20'
+                  : 'text-white/60 bg-white/[0.05] border border-white/10 hover:bg-white/10 hover:text-white/80'
+              }`}
+            >
+              {btnLabel}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -270,14 +302,21 @@ export default function Dashboard() {
     profile, summary, wallets, walletsIncludedTotal, projectedCreditCardInvoice, availableCreditLimit, loading, error,
     month, year, setMonth, setYear,
     updateBalance, updateCreditCard, addTransaction, addPurchase: savePurchase, payCreditCardInvoice,
+    depositToSavings, withdrawFromSavings, transferInvestmentToIncome, deleteMonthIncome,
     addWallet, updateWallet, deleteWallet,
   } = useFinances()
 
   const [editBalance,    setEditBalance]    = useState(false)
   const [editCard,       setEditCard]       = useState(false)
   const [addTxModal,     setAddTxModal]     = useState(false)
+  const [txDefaultType,  setTxDefaultType]  = useState('expense')
   const [addPurchase,    setAddPurchase]    = useState(false)
   const [confirmPayCard, setConfirmPayCard] = useState(false)
+  const [confirmClearIncome, setConfirmClearIncome] = useState(false)
+  const [savingsModal,   setSavingsModal]   = useState(null) // 'deposit' | 'withdraw'
+  const [transferInvModal, setTransferInvModal] = useState(false)
+  const [quickAmount,    setQuickAmount]    = useState(null)
+  const [quickDesc,      setQuickDesc]      = useState('')
   const [payAnimating,   setPayAnimating]   = useState(false)
   const [displayAccount, setDisplayAccount] = useState(null)
   const [displayCard,    setDisplayCard]    = useState(null)
@@ -295,6 +334,8 @@ export default function Dashboard() {
   const shownCard = displayCard ?? cardBalance
   const netBalance = shownAccount - shownCard
   const monthName  = new Date(year, month - 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
+  const savingsBalance = Number(profile?.savings_balance) || 0
+  const investmentBalance = Number(profile?.investment_balance) || 0
 
   useEffect(() => {
     if (!payAnimating) {
@@ -357,6 +398,52 @@ export default function Dashboard() {
       })
       setEditCard(false)
       toast.success('Cartão atualizado')
+    } catch (e) { toast.error(e.message) }
+    finally { setSaving(false) }
+  }
+
+  const openTxModal = (type) => {
+    setTxDefaultType(type)
+    setAddTxModal(true)
+  }
+
+  const handleQuickSavings = async () => {
+    if (!quickAmount || quickAmount <= 0) { toast.error('Informe o valor'); return }
+    setSaving(true)
+    try {
+      if (savingsModal === 'deposit') {
+        await depositToSavings(quickAmount, quickDesc || 'Depósito na poupança')
+        toast.success('Valor incluído na poupança')
+      } else {
+        await withdrawFromSavings(quickAmount, quickDesc || 'Resgate da poupança')
+        toast.success('Valor retirado da poupança')
+      }
+      setSavingsModal(null)
+      setQuickAmount(null)
+      setQuickDesc('')
+    } catch (e) { toast.error(e.message) }
+    finally { setSaving(false) }
+  }
+
+  const handleTransferInvestment = async () => {
+    if (!quickAmount || quickAmount <= 0) { toast.error('Informe o valor'); return }
+    setSaving(true)
+    try {
+      await transferInvestmentToIncome(quickAmount, quickDesc || 'Resgate de investimento')
+      toast.success('Valor transferido para receitas')
+      setTransferInvModal(false)
+      setQuickAmount(null)
+      setQuickDesc('')
+    } catch (e) { toast.error(e.message) }
+    finally { setSaving(false) }
+  }
+
+  const handleClearMonthIncome = async () => {
+    setSaving(true)
+    setConfirmClearIncome(false)
+    try {
+      const count = await deleteMonthIncome()
+      toast.success(count > 0 ? `${count} receita(s) removida(s) do mês` : 'Nenhuma receita no mês')
     } catch (e) { toast.error(e.message) }
     finally { setSaving(false) }
   }
@@ -452,6 +539,8 @@ export default function Dashboard() {
           icon={Wallet}
           color="emerald"
           onEdit={() => { setNewBalance(profile?.account_balance); setEditBalance(true) }}
+          onAction={() => { setQuickAmount(null); setQuickDesc(''); setSavingsModal('deposit') }}
+          actionLabel="Incluir na poupança"
         />
         <CreditCardCard
           value={shownCard}
@@ -480,10 +569,41 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-4">
-        <StatCard label="Receitas"      value={summary?.totalIncome}      positive />
-        <StatCard label="Gastos"        value={summary?.totalExpenses}    positive={false} />
-        <StatCard label="Investimentos" value={summary?.totalInvestments} positive />
-        <StatCard label="Poupança"      value={summary?.totalSavings}     positive />
+        <StatCard
+          label="Receitas"
+          value={summary?.totalIncome}
+          positive
+          subtitle="Total do mês selecionado"
+          actions={[
+            { label: 'Registrar receita', onClick: () => openTxModal('income') },
+            { label: 'Limpar receitas do mês', onClick: () => setConfirmClearIncome(true), variant: 'danger' },
+          ]}
+        />
+        <StatCard
+          label="Gastos"
+          value={summary?.totalExpenses}
+          positive={false}
+          subtitle="Total do mês selecionado"
+        />
+        <StatCard
+          label="Investimentos"
+          value={investmentBalance}
+          positive
+          subtitle={`Mês: ${fmt(summary?.totalInvestments || 0)}`}
+          actions={[
+            { label: 'Adicionar', onClick: () => openTxModal('investment') },
+            { label: 'Incluir em receitas', onClick: () => { setQuickAmount(null); setQuickDesc(''); setTransferInvModal(true) } },
+          ]}
+        />
+        <StatCard
+          label="Poupança"
+          value={savingsBalance}
+          positive
+          subtitle={`Mês: ${fmt(summary?.totalSavings || 0)}`}
+          actions={[
+            { label: 'Retirar da poupança', onClick: () => { setQuickAmount(null); setQuickDesc(''); setSavingsModal('withdraw') } },
+          ]}
+        />
       </div>
 
       {/* Gráficos */}
@@ -580,6 +700,7 @@ export default function Dashboard() {
 
       {addTxModal && (
         <TransactionModal
+          defaultType={txDefaultType}
           onClose={() => setAddTxModal(false)}
           onSave={async (data) => { await addTransaction(data); setAddTxModal(false); toast.success('Transação adicionada') }}
         />
@@ -601,6 +722,60 @@ export default function Dashboard() {
         confirmLabel="Pagar Fatura"
         cancelLabel="Cancelar"
       />
+
+      <ConfirmDialog
+        isOpen={confirmClearIncome}
+        onCancel={() => setConfirmClearIncome(false)}
+        onConfirm={handleClearMonthIncome}
+        title="Limpar receitas do mês?"
+        message={`Todas as receitas de ${monthName} serão excluídas e o saldo em conta será ajustado.`}
+        confirmLabel="Limpar receitas"
+        cancelLabel="Cancelar"
+      />
+
+      <Modal
+        isOpen={!!savingsModal}
+        onClose={() => setSavingsModal(null)}
+        title={savingsModal === 'deposit' ? 'Incluir na poupança' : 'Retirar da poupança'}
+      >
+        <div className="space-y-4">
+          <CurrencyInput label="Valor" value={quickAmount} onChange={setQuickAmount} />
+          <Input
+            label="Descrição (opcional)"
+            value={quickDesc}
+            onChange={e => setQuickDesc(e.target.value)}
+            placeholder={savingsModal === 'deposit' ? 'Depósito na poupança' : 'Resgate da poupança'}
+          />
+          {savingsModal === 'withdraw' && (
+            <p className="text-xs text-white/40">Saldo disponível na poupança: {fmt(savingsBalance)}</p>
+          )}
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setSavingsModal(null)}>Cancelar</Button>
+            <Button className="flex-1" loading={saving} onClick={handleQuickSavings}>Confirmar</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={transferInvModal}
+        onClose={() => setTransferInvModal(false)}
+        title="Transferir investimento para receitas"
+      >
+        <div className="space-y-4">
+          <CurrencyInput label="Valor" value={quickAmount} onChange={setQuickAmount} />
+          <Input
+            label="Descrição (opcional)"
+            value={quickDesc}
+            onChange={e => setQuickDesc(e.target.value)}
+            placeholder="Resgate de investimento"
+          />
+          <p className="text-xs text-white/40">Saldo em investimentos: {fmt(investmentBalance)}</p>
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setTransferInvModal(false)}>Cancelar</Button>
+            <Button className="flex-1" loading={saving} onClick={handleTransferInvestment}>Transferir</Button>
+          </div>
+        </div>
+      </Modal>
 
       <ChatWidget />
     </div>

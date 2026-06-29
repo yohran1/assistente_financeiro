@@ -1,25 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { MessageCircle, X, Send, Bot, User, ChevronDown } from 'lucide-react'
 import { sendToAI, buildFinancialContext } from '../../lib/ai-router'
+import { parseUserIntent, parseAiAction, executeChatAction, stripMarkdown } from '../../lib/chatActions'
 import { useFinances } from '../../hooks/useFinances'
 import DOMPurify from 'dompurify'
 import toast from 'react-hot-toast'
 
-const SYSTEM_PROMPT = `Você é um assistente financeiro pessoal inteligente e amigável.
-Você tem acesso ao contexto financeiro do usuário e pode ajudá-lo a:
-- Entender seus gastos e padrões financeiros
-- Registrar transações (informe ao usuário que você inseriu e peça para ele conferir)
-- Dar conselhos de economia e investimento
-- Analisar onde está gastando mais
-
-Sempre que inserir dados, diga que fez a inserção e peça para o usuário verificar se está correto.
-Responda sempre em português brasileiro de forma clara, objetiva e amigável.
-Seja proativo em identificar oportunidades de economia.
-Máximo 3 parágrafos por resposta.`
+const SYSTEM_PROMPT = `Voce e um assistente financeiro pessoal.
+Respostas curtas, objetivas, em portugues brasileiro, sem markdown.
+Quando registrar transacoes, confirme brevemente e peca para conferir no dashboard.`
 
 const INITIAL_MESSAGE = {
   role: 'assistant',
-  content: '👋 Olá! Sou seu assistente financeiro. Posso ajudá-lo a registrar gastos, analisar suas finanças e dar conselhos personalizados. Como posso ajudar?',
+  content: 'Ola! Sou seu assistente financeiro. Posso registrar gastos, analisar suas financas e dar conselhos. Como posso ajudar?',
 }
 
 function ChatMessage({ message }) {
@@ -77,9 +70,11 @@ export function ChatWidget() {
   const [loading, setLoading] = useState(false)
   const messagesEndRef         = useRef(null)
   const inputRef               = useRef(null)
-  const { profile, summary, categories } = useFinances()
+  const {
+    profile, summary, categories,
+    addTransaction, addPurchase, refresh,
+  } = useFinances()
 
-  // Scroll para última mensagem
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [])
@@ -87,10 +82,21 @@ export function ChatWidget() {
   useEffect(() => {
     if (open) {
       scrollToBottom()
-      // Delay para aguardar animação de abertura
       setTimeout(() => inputRef.current?.focus(), 300)
     }
   }, [messages, open, scrollToBottom])
+
+  const runAction = useCallback(async (action) => {
+    if (!action) return false
+    try {
+      await executeChatAction(action, { addTransaction, addPurchase, refresh })
+      toast.success('Transacao registrada via chat')
+      return true
+    } catch (err) {
+      toast.error(err.message || 'Falha ao registrar transacao')
+      return false
+    }
+  }, [addTransaction, addPurchase, refresh])
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
@@ -105,6 +111,16 @@ export function ChatWidget() {
     setLoading(true)
 
     try {
+      const localIntent = parseUserIntent(cleanText)
+      if (localIntent) {
+        const ok = await runAction(localIntent)
+        const reply = ok
+          ? `Pronto! Registrei ${localIntent.description} de R$ ${localIntent.amount.toFixed(2).replace('.', ',')}. Confira no dashboard.`
+          : 'Nao consegui registrar a transacao. Tente pelo botao Adicionar compra.'
+        setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+        return
+      }
+
       const context = buildFinancialContext({
         accountBalance:    profile?.account_balance,
         creditCardBalance: profile?.credit_card_balance,
@@ -113,22 +129,35 @@ export function ChatWidget() {
         categories,
       })
 
-      const aiResponse = await sendToAI(
+      const aiResult = await sendToAI(
         [{ role: 'system', content: SYSTEM_PROMPT }, ...newMessages.slice(-12)],
         context
       )
 
-      setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }])
+      const raw = typeof aiResult === 'string' ? aiResult : aiResult.content
+      const serverAction = typeof aiResult === 'object' ? aiResult.action : null
+      const parsed = parseAiAction(raw)
+      const action = serverAction || parsed.action
+      let content = parsed.content || stripMarkdown(raw)
+
+      if (action) {
+        const ok = await runAction(action)
+        if (ok && !content) {
+          content = 'Transacao registrada. Confira no dashboard se esta correta.'
+        }
+      }
+
+      setMessages(prev => [...prev, { role: 'assistant', content: content || 'Ok.' }])
     } catch {
-      toast.error('IA temporariamente indisponível')
+      toast.error('IA temporariamente indisponivel')
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Desculpe, estou com dificuldades no momento. Tente novamente em instantes. 🔄',
+        content: 'Desculpe, estou com dificuldades no momento. Tente novamente em instantes.',
       }])
     } finally {
       setLoading(false)
     }
-  }, [input, loading, messages, profile, summary, categories])
+  }, [input, loading, messages, profile, summary, categories, runAction])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -137,7 +166,6 @@ export function ChatWidget() {
     }
   }
 
-  // Ajusta altura do textarea dinamicamente
   const handleInputChange = (e) => {
     setInput(e.target.value)
     e.target.style.height = 'auto'
@@ -146,7 +174,6 @@ export function ChatWidget() {
 
   return (
     <>
-      {/* Botão flutuante */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
@@ -167,7 +194,6 @@ export function ChatWidget() {
         </button>
       )}
 
-      {/* Janela do chat */}
       {open && (
         <div
           role="dialog"
@@ -184,9 +210,7 @@ export function ChatWidget() {
             shadow-2xl flex flex-col overflow-hidden
           "
         >
-          {/* Header */}
           <div className="flex items-center gap-3 p-4 border-b border-white/[0.06] flex-shrink-0">
-            {/* Drag handle mobile */}
             <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 bg-white/15 rounded-full md:hidden" />
             <div className="w-8 h-8 rounded-full bg-brand-600/25 flex items-center justify-center">
               <Bot size={16} className="text-brand-400" />
@@ -216,7 +240,6 @@ export function ChatWidget() {
             </div>
           </div>
 
-          {/* Mensagens */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((msg, i) => (
               <ChatMessage key={i} message={msg} />
@@ -225,7 +248,6 @@ export function ChatWidget() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div className="p-3 border-t border-white/[0.06] flex-shrink-0"
             style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
             <div className="flex gap-2 items-end">
@@ -234,7 +256,7 @@ export function ChatWidget() {
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder="Pergunte sobre suas finanças..."
+                placeholder="Pergunte sobre suas financas..."
                 rows={1}
                 disabled={loading}
                 aria-label="Mensagem para o assistente"

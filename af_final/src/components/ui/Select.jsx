@@ -4,7 +4,6 @@ import { ChevronDown } from 'lucide-react'
 /**
  * Select cross-browser com aparência consistente em
  * Chrome, Firefox, Safari, Edge, iOS Safari e Android Chrome.
- * Remove aparência nativa e aplica seta SVG customizada.
  */
 export const Select = forwardRef(({
   label,
@@ -26,9 +25,9 @@ export const Select = forwardRef(({
           {label}
         </label>
       )}
-      <div className="relative isolate overflow-hidden">
+      <div className={`relative isolate overflow-hidden ${compact ? 'min-w-[10.5rem]' : ''}`}>
         {Icon && (
-          <span className="pointer-events-none absolute left-0 top-0 z-10 flex h-full w-10 shrink-0 items-center justify-center text-white/30">
+          <span className="pointer-events-none absolute left-0 top-0 z-10 flex h-full w-10 shrink-0 items-center justify-center text-white/40">
             <Icon size={15} className="shrink-0" aria-hidden="true" />
           </span>
         )}
@@ -37,16 +36,19 @@ export const Select = forwardRef(({
           id={selectId}
           className={`
             w-full box-border rounded-xl
-            bg-white/[0.05] border border-white/10
-            text-white
+            bg-[#16161f] border border-white/10
+            text-white/90
             transition-colors duration-200
             cursor-pointer
+            [color-scheme:dark]
             focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-500/40 focus:border-brand-500/40 focus:shadow-none
             disabled:opacity-40 disabled:cursor-not-allowed
             bg-[length:0_0] [background-image:none]
-            ${compact ? 'py-2 min-h-[40px] text-sm' : 'py-3 min-h-[48px]'}
+            ${compact
+              ? 'py-2 min-h-[40px] text-sm text-center font-medium capitalize'
+              : 'py-3 min-h-[48px] text-left'}
             ${error ? 'border-red-500/50 focus:ring-red-500/30' : ''}
-            ${Icon ? 'pl-10 pr-10' : 'pl-4 pr-10'}
+            ${Icon ? 'pl-10 pr-10' : compact ? 'px-10' : 'pl-4 pr-10'}
             ${className}
           `}
           aria-invalid={!!error}
@@ -55,7 +57,6 @@ export const Select = forwardRef(({
         >
           {children}
         </select>
-        {/* Seta customizada — funciona em todos os browsers */}
         <div className="absolute inset-y-0 right-0 z-10 flex w-10 shrink-0 items-center justify-center pointer-events-none text-white/40">
           <ChevronDown size={15} aria-hidden="true" />
         </div>

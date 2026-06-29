@@ -23,7 +23,7 @@ function parseNumeric(value) {
 const PROFILE_BASE_FIELDS =
   'id, name, account_balance, credit_card_balance, credit_card_limit, updated_at'
 const PROFILE_EXTENDED_FIELDS =
-  `${PROFILE_BASE_FIELDS}, credit_card_closing_day, credit_card_due_day, credit_card_invoice_paid_at`
+  `${PROFILE_BASE_FIELDS}, credit_card_closing_day, credit_card_due_day, credit_card_invoice_paid_at, savings_balance, investment_balance`
 
 function isMissingBillingColumnsError(error) {
   const msg = error?.message ?? ''
@@ -35,12 +35,19 @@ function isMissingInvoicePaidAtError(error) {
   return msg.includes('credit_card_invoice_paid_at')
 }
 
+function isMissingSavingsColumnsError(error) {
+  const msg = error?.message ?? ''
+  return msg.includes('savings_balance') || msg.includes('investment_balance')
+}
+
 function normalizeProfile(data) {
   return {
     ...data,
     account_balance: parseNumeric(data?.account_balance),
     credit_card_balance: parseNumeric(data?.credit_card_balance),
     credit_card_limit: parseNumeric(data?.credit_card_limit),
+    savings_balance: parseNumeric(data?.savings_balance),
+    investment_balance: parseNumeric(data?.investment_balance),
     credit_card_closing_day: data?.credit_card_closing_day ?? null,
     credit_card_due_day: data?.credit_card_due_day ?? null,
     credit_card_invoice_paid_at: data?.credit_card_invoice_paid_at ?? null,
@@ -53,7 +60,7 @@ export async function getProfile() {
     .select(PROFILE_EXTENDED_FIELDS)
     .single()
 
-  if (error && isMissingBillingColumnsError(error)) {
+  if (error && (isMissingBillingColumnsError(error) || isMissingSavingsColumnsError(error))) {
     ;({ data, error } = await supabase.from('profiles').select(PROFILE_BASE_FIELDS).single())
   }
   if (error) throw error
@@ -211,12 +218,14 @@ function normalizeTransaction(row) {
   }
 }
 
-async function applyBalanceImpacts({ account = 0, creditCard = 0 } = {}) {
-  if (!account && !creditCard) return null
+async function applyBalanceImpacts({ account = 0, creditCard = 0, savings = 0, investment = 0 } = {}) {
+  if (!account && !creditCard && !savings && !investment) return null
   const profile = await getProfile()
   const updates = { updated_at: new Date().toISOString() }
   if (account) updates.account_balance = parseNumeric(profile.account_balance) + account
   if (creditCard) updates.credit_card_balance = parseNumeric(profile.credit_card_balance) + creditCard
+  if (savings) updates.savings_balance = parseNumeric(profile.savings_balance) + savings
+  if (investment) updates.investment_balance = parseNumeric(profile.investment_balance) + investment
 
   const userId = await getCurrentUserId()
   let { data, error } = await supabase
@@ -226,7 +235,9 @@ async function applyBalanceImpacts({ account = 0, creditCard = 0 } = {}) {
     .select()
     .single()
 
-  if (error && isMissingBillingColumnsError(error)) {
+  if (error && (isMissingBillingColumnsError(error) || isMissingSavingsColumnsError(error))) {
+    delete updates.savings_balance
+    delete updates.investment_balance
     delete updates.credit_card_closing_day
     delete updates.credit_card_due_day
     ;({ data, error } = await supabase.from('profiles').update(updates).eq('id', userId).select().single())
@@ -239,6 +250,8 @@ function diffBalanceImpact(before, after) {
   return {
     account: after.account - before.account,
     creditCard: after.creditCard - before.creditCard,
+    savings: (after.savings ?? 0) - (before.savings ?? 0),
+    investment: (after.investment ?? 0) - (before.investment ?? 0),
   }
 }
 
@@ -434,7 +447,12 @@ export async function deleteTransaction(id) {
   const { error } = await supabase.from('transactions').delete().eq('id', id)
   if (error) throw error
   const impact = balanceImpactForTransaction(oldTx)
-  await applyBalanceImpacts({ account: -impact.account, creditCard: -impact.creditCard })
+  await applyBalanceImpacts({
+    account: -impact.account,
+    creditCard: -impact.creditCard,
+    savings: -(impact.savings ?? 0),
+    investment: -(impact.investment ?? 0),
+  })
 }
 
 // ── Gastos Recorrentes ───────────────────────────────────────────────────────
@@ -648,4 +666,66 @@ export async function updateWallet(id, { name, balance, includeInTotal }) {
 export async function deleteWallet(id) {
   const { error } = await supabase.from('wallets').delete().eq('id', id)
   if (error) throw error
+}
+
+// ── Poupança, investimentos e receitas do mês ────────────────────────────────
+
+export async function depositToSavings(amount, description = 'Depósito na poupança') {
+  const amt = parseFloat(amount)
+  if (isNaN(amt) || amt <= 0) throw new Error('Valor deve ser positivo')
+  const profile = await getProfile()
+  if (parseNumeric(profile.account_balance) < amt) {
+    throw new Error('Saldo em conta insuficiente')
+  }
+  return addTransaction({
+    description,
+    amount: amt,
+    type: 'saving',
+    date: new Date().toISOString().split('T')[0],
+  })
+}
+
+export async function withdrawFromSavings(amount, description = 'Resgate da poupança') {
+  const amt = parseFloat(amount)
+  if (isNaN(amt) || amt <= 0) throw new Error('Valor deve ser positivo')
+  const profile = await getProfile()
+  const savings = parseNumeric(profile.savings_balance)
+  if (savings < amt) throw new Error('Saldo na poupança insuficiente')
+  await applyBalanceImpacts({ account: amt, savings: -amt })
+  return { amount: amt, description, savingsBalance: savings - amt }
+}
+
+export async function transferInvestmentToIncome(amount, description = 'Resgate de investimento') {
+  const amt = parseFloat(amount)
+  if (isNaN(amt) || amt <= 0) throw new Error('Valor deve ser positivo')
+  const profile = await getProfile()
+  const invested = parseNumeric(profile.investment_balance)
+  if (invested < amt) throw new Error('Saldo em investimentos insuficiente')
+  await applyBalanceImpacts({ investment: -amt })
+  return addTransaction({
+    description,
+    amount: amt,
+    type: 'income',
+    date: new Date().toISOString().split('T')[0],
+  }).catch(async (err) => {
+    await applyBalanceImpacts({ investment: amt })
+    throw err
+  })
+}
+
+export async function deleteMonthIncome(month, year) {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`
+  const end = new Date(year, month, 0).toISOString().split('T')[0]
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(TX_EXTENDED_FIELDS)
+    .eq('type', 'income')
+    .gte('date', start)
+    .lte('date', end)
+  if (error) throw error
+
+  for (const tx of data || []) {
+    await deleteTransaction(tx.id)
+  }
+  return (data || []).length
 }
