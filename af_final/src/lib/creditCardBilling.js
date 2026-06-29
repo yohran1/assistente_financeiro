@@ -173,7 +173,29 @@ export function payCreditCardInvoicePlan({
 }
 
 /**
- * Previsão da próxima fatura (após pagamento ou ciclo em aberto).
+ * Exibe prévia da próxima fatura somente após o fechamento do ciclo atual e pagamento.
+ */
+export function isNextInvoicePreviewEligible({
+  closingDay,
+  creditCardBalance,
+  invoicePaidAt,
+  today = new Date(),
+}) {
+  if (!closingDay) return false
+  if ((Number(creditCardBalance) || 0) > 0) return false
+  if (!invoicePaidAt) return false
+
+  const paidAt = new Date(invoicePaidAt)
+  const lastClosingAtPay = getLastClosingDate(closingDay, paidAt)
+  const cycleEndDate = getNextClosingDate(closingDay, lastClosingAtPay)
+  const todayNorm = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const cycleEndNorm = new Date(cycleEndDate.getFullYear(), cycleEndDate.getMonth(), cycleEndDate.getDate())
+
+  return todayNorm >= cycleEndNorm
+}
+
+/**
+ * Previsão da próxima fatura (somente após ciclo fechado e pago).
  * Inclui assinaturas no cartão, parcelas mensais e compras à vista no ciclo atual.
  */
 export function computeProjectedCreditCardInvoice({

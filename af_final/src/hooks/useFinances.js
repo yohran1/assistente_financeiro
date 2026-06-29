@@ -19,8 +19,8 @@ import {
   updateWallet,
   deleteWallet,
 } from '../services/finances'
-import { computeMonthlyAccountDeductions } from '../lib/balanceImpact'
-import { computeProjectedCreditCardInvoice } from '../lib/creditCardBilling'
+import { computeAvailableCreditLimit } from '../lib/balanceImpact'
+import { computeProjectedCreditCardInvoice, isNextInvoicePreviewEligible } from '../lib/creditCardBilling'
 
 export function useFinances() {
   const [profile, setProfile] = useState(null)
@@ -164,16 +164,13 @@ export function useFinances() {
     .filter(w => w.include_in_total)
     .reduce((sum, w) => sum + (Number(w.balance) || 0), 0)
 
-  const monthlyDeductions = computeMonthlyAccountDeductions({
-    transactions,
-    activeInstallments,
-    recurringExpenses,
-    month,
-    year,
-  })
-
   const closingDay = profile?.credit_card_closing_day
-  const projectedCreditCardInvoice = closingDay
+  const showNextInvoicePreview = isNextInvoicePreviewEligible({
+    closingDay,
+    creditCardBalance: profile?.credit_card_balance,
+    invoicePaidAt: profile?.credit_card_invoice_paid_at,
+  })
+  const projectedCreditCardInvoice = closingDay && showNextInvoicePreview
     ? computeProjectedCreditCardInvoice({
         transactions: recentTransactions,
         activeInstallments,
@@ -183,6 +180,11 @@ export function useFinances() {
       })
     : { items: [], total: 0 }
 
+  const availableCreditLimit = computeAvailableCreditLimit(
+    profile?.credit_card_limit,
+    activeInstallments,
+  )
+
   return {
     profile,
     transactions,
@@ -190,8 +192,8 @@ export function useFinances() {
     categories,
     recurringExpenses,
     activeInstallments,
-    monthlyDeductions,
     projectedCreditCardInvoice,
+    availableCreditLimit,
     wallets,
     walletsIncludedTotal,
     loading,

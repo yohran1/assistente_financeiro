@@ -6,6 +6,7 @@ import {
   payCreditCardInvoicePlan,
   computeProjectedCreditCardInvoice,
   getInstallmentsDueOnInvoice,
+  isNextInvoicePreviewEligible,
 } from '../lib/creditCardBilling'
 
 describe('creditCardBilling', () => {
@@ -89,6 +90,35 @@ describe('payCreditCardInvoicePlan', () => {
     const due = getInstallmentsDueOnInvoice(installments)
     expect(due).toHaveLength(1)
     expect(due[0].id).toBe('tx1')
+  })
+})
+
+describe('isNextInvoicePreviewEligible', () => {
+  it('não exibe prévia com fatura em aberto', () => {
+    expect(isNextInvoicePreviewEligible({
+      closingDay: 5,
+      creditCardBalance: 150,
+      invoicePaidAt: '2026-07-01T12:00:00Z',
+      today: new Date(2026, 6, 10),
+    })).toBe(false)
+  })
+
+  it('não exibe prévia antes do fechamento do ciclo', () => {
+    expect(isNextInvoicePreviewEligible({
+      closingDay: 25,
+      creditCardBalance: 0,
+      invoicePaidAt: '2026-06-10T12:00:00Z',
+      today: new Date(2026, 5, 15),
+    })).toBe(false)
+  })
+
+  it('exibe prévia após fechamento e pagamento', () => {
+    expect(isNextInvoicePreviewEligible({
+      closingDay: 25,
+      creditCardBalance: 0,
+      invoicePaidAt: '2026-06-28T12:00:00Z',
+      today: new Date(2026, 6, 26),
+    })).toBe(true)
   })
 })
 

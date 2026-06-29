@@ -21,7 +21,6 @@ export function balanceImpactForTransaction(tx) {
   const type = tx.type
   const amount = Number(tx.amount) || 0
   const installmentAmount = Number(tx.installment_amount ?? tx.installmentAmount) || amount
-  const paid = Math.max(0, parseInt(installmentsPaidOf(tx), 10) || 0)
   const purchaseType = purchaseTypeOf(tx)
   const paymentSource = paymentSourceOf(tx)
 
@@ -29,12 +28,9 @@ export function balanceImpactForTransaction(tx) {
 
   if (type === 'expense') {
     if (purchaseType === 'installment') {
-      const total = installmentAmount * (parseInt(installmentsTotalOf(tx), 10) || 1)
-      const accountDebit = tx.in_progress && paid > 0
-        ? -(installmentAmount * paid)
-        : -installmentAmount
-      const creditCardDelta = paymentSource === 'credit_card' ? total : 0
-      return { account: accountDebit, creditCard: creditCardDelta }
+      // Parcelado no cartão: só a parcela atual entra na fatura; conta não muda na compra.
+      const creditCardDelta = paymentSource === 'credit_card' ? installmentAmount : 0
+      return { account: 0, creditCard: creditCardDelta }
     }
     if (paymentSource === 'credit_card') {
       return { account: 0, creditCard: amount }
@@ -64,7 +60,8 @@ export function balanceImpactForRecurring(exp) {
   if (paymentSourceOf(exp) === 'credit_card') {
     return { account: 0, creditCard: amount }
   }
-  return { account: -amount, creditCard: 0 }
+  // Assinatura na conta: não debita na criação (só à vista na conta debita imediatamente).
+  return { account: 0, creditCard: 0 }
 }
 
 function isInMonth(dateStr, month, year) {
@@ -154,6 +151,36 @@ export function formatPurchaseLabel(tx) {
   const total = installmentsTotalOf(tx) ?? '?'
   const paid = installmentsPaidOf(tx)
   return `Parcelada ${paid}/${total}`
+}
+
+/** Status da parcela no ciclo de fatura: (pago) ou (não paga). */
+export function formatInstallmentInvoiceStatus(tx, { cardBalance = 0 } = {}) {
+  const purchaseType = purchaseTypeOf(tx)
+  if (purchaseType !== 'installment') return ''
+  const paid = installmentsPaidOf(tx)
+  const total = parseInt(installmentsTotalOf(tx), 10) || 0
+  if (paid >= total) return '(pago)'
+  if (Number(cardBalance) > 0) return '(não paga)'
+  return '(pago)'
+}
+
+/** Limite comprometido por parcelas ativas no cartão (valor restante das compras). */
+export function computeCreditCardLimitUsed(activeInstallments = []) {
+  return activeInstallments.reduce((sum, tx) => {
+    if (purchaseTypeOf(tx) !== 'installment') return sum
+    if (paymentSourceOf(tx) !== 'credit_card') return sum
+    const per = Number(tx.installment_amount ?? tx.installmentAmount) || Number(tx.amount) || 0
+    const total = parseInt(installmentsTotalOf(tx), 10) || 0
+    const paid = installmentsPaidOf(tx)
+    const remaining = Math.max(0, total - paid)
+    return sum + per * remaining
+  }, 0)
+}
+
+export function computeAvailableCreditLimit(creditLimit, activeInstallments = []) {
+  const limit = Number(creditLimit) || 0
+  const used = computeCreditCardLimitUsed(activeInstallments)
+  return Math.max(0, limit - used)
 }
 
 export function purchaseKindLabel(kind) {
