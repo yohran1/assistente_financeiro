@@ -41,6 +41,9 @@ html {
   scroll-behavior: smooth;
   /* Cor da barra de status no mobile */
   background-color: #0a0a0f;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 
 body {
@@ -48,11 +51,24 @@ body {
   background-color: #0a0a0f;
   color: #ffffff;
   min-height: 100vh;
+  min-height: -webkit-fill-available; /* Safari iOS */
   min-height: 100dvh; /* Dynamic viewport — corrige barra de URL mobile */
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
   /* Padding safe area para notch e home indicator */
   padding-left:  var(--safe-left);
   padding-right: var(--safe-right);
   overscroll-behavior: none; /* Evita "rubber-band" indesejado no iOS */
+}
+
+#root {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 
 /* ============================================================

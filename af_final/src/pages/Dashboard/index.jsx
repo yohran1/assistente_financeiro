@@ -496,12 +496,12 @@ export default function Dashboard() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto animate-fade-in">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-semibold text-white">Dashboard</h1>
-          <p className="text-white/40 text-sm mt-0.5 capitalize">{monthName}</p>
+          <p className="text-white/40 text-sm mt-0.5 capitalize truncate">{monthName}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select
             icon={Calendar}
             compact

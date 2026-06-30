@@ -60,6 +60,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }) {
       aria-modal="true"
       aria-labelledby="modal-title"
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       {/* Backdrop */}
@@ -72,7 +73,9 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }) {
         rounded-t-3xl sm:rounded-3xl
         animate-slide-up
         max-h-[92dvh] flex flex-col
-      `}>
+      `}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/[0.06] flex-shrink-0">
           {/* Drag handle — mobile only */}

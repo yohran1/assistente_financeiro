@@ -31,7 +31,7 @@ export function AppLayout() {
       <main
         className="
           flex-1 overflow-y-auto overflow-x-hidden
-          pb-20 md:pb-0
+          pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0
         "
         id="main-content"
       >
