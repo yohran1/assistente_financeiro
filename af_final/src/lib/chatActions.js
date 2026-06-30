@@ -71,7 +71,7 @@ export function parseUserIntent(text) {
 export async function executeChatAction(action, handlers) {
   if (!action?.type) return null
 
-  const { addTransaction, addPurchase, refresh } = handlers
+  const { addTransaction, addPurchase } = handlers
   const amount = parseFloat(action.amount)
   if (isNaN(amount) || amount <= 0) throw new Error('Valor inválido na ação')
 
@@ -84,7 +84,6 @@ export async function executeChatAction(action, handlers) {
       paymentSource: action.payment_source || 'account',
       date: new Date().toISOString().split('T')[0],
     })
-    await refresh?.()
     return tx
   }
 
@@ -95,7 +94,6 @@ export async function executeChatAction(action, handlers) {
       type: 'income',
       date: new Date().toISOString().split('T')[0],
     })
-    await refresh?.()
     return tx
   }
 
@@ -107,7 +105,6 @@ export async function executeChatAction(action, handlers) {
       paymentSource: action.payment_source || 'account',
       date: new Date().toISOString().split('T')[0],
     })
-    await refresh?.()
     return result
   }
 

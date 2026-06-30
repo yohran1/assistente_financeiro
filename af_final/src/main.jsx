@@ -1,13 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { registerSW } from 'virtual:pwa-register'
 import * as Sentry from '@sentry/react'
+import { initPwaUpdate } from './lib/pwaUpdate'
 import App from './App.jsx'
 import './styles/index.css'
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  registerSW({ immediate: true })
-}
+initPwaUpdate()
 
 // Inicializa Sentry apenas em produção
 if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {

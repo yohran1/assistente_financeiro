@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { MessageCircle, X, Send, Bot, User, ChevronDown } from 'lucide-react'
 import { sendToAI, buildFinancialContext } from '../../lib/ai-router'
 import { parseUserIntent, parseAiAction, executeChatAction, stripMarkdown } from '../../lib/chatActions'
 import { useFinances } from '../../hooks/useFinances'
+import { useMobileViewport } from '../../lib/useMobileViewport'
 import DOMPurify from 'dompurify'
 import toast from 'react-hot-toast'
 
@@ -68,11 +70,15 @@ export function ChatWidget() {
   const [messages, setMessages] = useState([INITIAL_MESSAGE])
   const [input, setInput]     = useState('')
   const [loading, setLoading] = useState(false)
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  )
   const messagesEndRef         = useRef(null)
   const inputRef               = useRef(null)
+  const viewport                 = useMobileViewport(open)
   const {
     profile, summary, categories,
-    addTransaction, addPurchase, refresh,
+    addTransaction, addPurchase,
   } = useFinances()
 
   const scrollToBottom = useCallback(() => {
@@ -80,23 +86,51 @@ export function ChatWidget() {
   }, [])
 
   useEffect(() => {
-    if (open) {
-      scrollToBottom()
-      setTimeout(() => inputRef.current?.focus(), 300)
-    }
+    if (!open) return
+    scrollToBottom()
   }, [messages, open, scrollToBottom])
+
+  useEffect(() => {
+    if (!open) return
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const onChange = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  const focusInput = useCallback(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.focus({ preventScroll: true })
+    if (typeof el.setSelectionRange === 'function') {
+      const len = el.value.length
+      el.setSelectionRange(len, len)
+    }
+  }, [])
+
+  const handleOpen = useCallback(() => {
+    setOpen(true)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(focusInput)
+    })
+  }, [focusInput])
 
   const runAction = useCallback(async (action) => {
     if (!action) return false
     try {
-      await executeChatAction(action, { addTransaction, addPurchase, refresh })
+      await executeChatAction(action, { addTransaction, addPurchase })
       toast.success('Transacao registrada via chat')
       return true
     } catch (err) {
       toast.error(err.message || 'Falha ao registrar transacao')
       return false
     }
-  }, [addTransaction, addPurchase, refresh])
+  }, [addTransaction, addPurchase])
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
@@ -156,8 +190,9 @@ export function ChatWidget() {
       }])
     } finally {
       setLoading(false)
+      requestAnimationFrame(focusInput)
     }
-  }, [input, loading, messages, profile, summary, categories, runAction])
+  }, [input, loading, messages, profile, summary, categories, runAction, focusInput])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -172,14 +207,18 @@ export function ChatWidget() {
     e.target.style.height = Math.min(e.target.scrollHeight, 112) + 'px'
   }
 
-  return (
+  const mobilePanelStyle = viewport.height
+    ? { bottom: viewport.bottom, height: viewport.height, maxHeight: '100dvh' }
+    : { bottom: 0, height: 'min(85dvh, calc(100dvh - env(safe-area-inset-top, 0px)))' }
+
+  const widget = (
     <>
       {!open && (
         <button
-          onClick={() => setOpen(true)}
+          onClick={handleOpen}
           aria-label="Abrir assistente financeiro"
           className="
-            fixed z-40
+            fixed z-50
             bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))]
             right-4
             md:bottom-6 md:right-6
@@ -188,7 +227,6 @@ export function ChatWidget() {
             shadow-xl shadow-brand-600/30
             flex items-center justify-center
             transition-all duration-200 touch-press
-            z-40
           "
         >
           <MessageCircle size={22} className="text-white" />
@@ -202,15 +240,15 @@ export function ChatWidget() {
           aria-label="Assistente financeiro IA"
           aria-live="polite"
           className="
-            fixed z-40 animate-slide-up
-            inset-x-0 bottom-0 md:inset-auto
+            fixed z-50 animate-slide-up
+            inset-x-0 md:inset-auto
             md:bottom-6 md:right-6
             md:w-[360px] md:h-[520px]
-            h-[75dvh]
             bg-[#0f0f1a] border border-white/[0.08]
             rounded-t-3xl md:rounded-3xl
             shadow-2xl flex flex-col overflow-hidden
           "
+          style={isMobile ? mobilePanelStyle : undefined}
         >
           <div className="flex items-center gap-3 p-4 border-b border-white/[0.06] flex-shrink-0">
             <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 bg-white/15 rounded-full md:hidden" />
@@ -242,7 +280,7 @@ export function ChatWidget() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 overscroll-contain">
             {messages.map((msg, i) => (
               <ChatMessage key={i} message={msg} />
             ))}
@@ -250,17 +288,23 @@ export function ChatWidget() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="p-3 border-t border-white/[0.06] flex-shrink-0"
-            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+          <div
+            className="p-3 border-t border-white/[0.06] flex-shrink-0 bg-[#0f0f1a]"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+          >
             <div className="flex gap-2 items-end">
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
+                onFocus={scrollToBottom}
                 placeholder="Pergunte sobre suas financas..."
                 rows={1}
                 disabled={loading}
+                enterKeyHint="send"
+                inputMode="text"
+                autoComplete="off"
                 aria-label="Mensagem para o assistente"
                 className="
                   flex-1 bg-white/[0.05] border border-white/10
@@ -296,4 +340,6 @@ export function ChatWidget() {
       )}
     </>
   )
+
+  return createPortal(widget, document.body)
 }
