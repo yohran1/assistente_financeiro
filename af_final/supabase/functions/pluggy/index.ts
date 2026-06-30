@@ -1,18 +1,23 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { buildCorsHeaders } from '../_shared/cors.ts'
 
 const PLUGGY_API = 'https://api.pluggy.ai'
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') || '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-pluggy-webhook-secret',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+function corsHeaders(origin?: string) {
+  return buildCorsHeaders(origin, {
+    methods: 'POST, OPTIONS',
+    extraHeaders: {
+      'Access-Control-Allow-Headers':
+        'authorization, x-client-info, apikey, content-type, x-pluggy-webhook-secret',
+    },
+  })
 }
 
-function jsonResponse(body: Record<string, unknown>, status = 200) {
+function jsonResponse(body: Record<string, unknown>, status = 200, origin?: string) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
   })
 }
 
@@ -148,8 +153,10 @@ async function syncUserConnections(
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('origin') || undefined
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS })
+    return new Response('ok', { headers: corsHeaders(origin) })
   }
 
   try {
@@ -162,7 +169,7 @@ serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return jsonResponse({ error: 'Não autenticado' }, 401)
+      return jsonResponse({ error: 'Não autenticado' }, 401, origin)
     }
 
     const supabase = createClient(
@@ -173,7 +180,7 @@ serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      return jsonResponse({ error: 'Token inválido' }, 401)
+      return jsonResponse({ error: 'Token inválido' }, 401, origin)
     }
 
     const clientId = Deno.env.get('PLUGGY_CLIENT_ID')
@@ -181,22 +188,22 @@ serve(async (req) => {
 
     if (action === 'connect-token') {
       if (!clientId || !clientSecret) {
-        return jsonResponse({ error: 'Pluggy não configurado no servidor' }, 503)
+        return jsonResponse({ error: 'Pluggy não configurado no servidor' }, 503, origin)
       }
       try {
         const apiKey = await getPluggyApiKey(clientId, clientSecret)
         const accessToken = await createConnectToken(apiKey, user.id, body.itemId)
-        return jsonResponse({ accessToken })
+        return jsonResponse({ accessToken }, 200, origin)
       } catch (e) {
         const mapped = mapPluggyError(e)
-        return jsonResponse({ error: mapped.error }, mapped.status)
+        return jsonResponse({ error: mapped.error }, mapped.status, origin)
       }
     }
 
     if (action === 'save-connection') {
       const itemId = body.itemId
       if (typeof itemId !== 'string' || !itemId.trim()) {
-        return jsonResponse({ error: 'itemId obrigatório' }, 400)
+        return jsonResponse({ error: 'itemId obrigatório' }, 400, origin)
       }
 
       const { data: connection, error: upsertError } = await supabase
@@ -214,10 +221,10 @@ serve(async (req) => {
         .single()
 
       if (upsertError) {
-        return jsonResponse({ error: upsertError.message }, 500)
+        return jsonResponse({ error: upsertError.message }, 500, origin)
       }
 
-      return jsonResponse({ connection })
+      return jsonResponse({ connection }, 200, origin)
     }
 
     if (action === 'sync') {
@@ -232,17 +239,17 @@ serve(async (req) => {
 
       const result = await syncUserConnections(supabase, user.id, apiKey)
       if ('error' in result && result.error) {
-        return jsonResponse({ error: result.error }, result.status)
+        return jsonResponse({ error: result.error }, result.status, origin)
       }
 
-      return jsonResponse(result)
+      return jsonResponse(result, 200, origin)
     }
 
     if (action === 'sync-all') {
       const serviceKey = Deno.env.get('SB_SERVICE_ROLE_KEY')
       const cronSecret = Deno.env.get('PLUGGY_CRON_SECRET')
       if (!serviceKey || body.cronSecret !== cronSecret) {
-        return jsonResponse({ error: 'Não autorizado para sync em lote' }, 403)
+        return jsonResponse({ error: 'Não autorizado para sync em lote' }, 403, origin)
       }
 
       const admin = createClient(
@@ -256,7 +263,7 @@ serve(async (req) => {
         .eq('status', 'active')
 
       if (error) {
-        return jsonResponse({ error: error.message }, 500)
+        return jsonResponse({ error: error.message }, 500, origin)
       }
 
       let apiKey: string | null = null
@@ -293,11 +300,11 @@ serve(async (req) => {
         synced: 0,
         message: 'Sync em lote — estrutura pronta para cron; importação de dados pendente',
         batches,
-      })
+      }, 200, origin)
     }
 
-    return jsonResponse({ error: 'Ação inválida' }, 400)
+    return jsonResponse({ error: 'Ação inválida' }, 400, origin)
   } catch (e) {
-    return jsonResponse({ error: String(e?.message ?? e) }, 500)
+    return jsonResponse({ error: String(e?.message ?? e) }, 500, origin)
   }
 })
