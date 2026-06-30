@@ -53,7 +53,7 @@ supabase link --project-ref SEU_PROJECT_REF
 supabase secrets set GEMINI_API_KEY=sua_chave
 supabase secrets set GROQ_API_KEY=sua_chave
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=sua_chave
-supabase secrets set ALLOWED_ORIGIN=https://assistente-financeiro-assistente-financas.vercel.app,https://assistente-financeiro-blue.vercel.app
+supabase secrets set ALLOWED_ORIGIN=https://inteligentefinancas.vercel.app
 
 # Deploy das functions
 supabase functions deploy ai-proxy

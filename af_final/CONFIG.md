@@ -24,7 +24,7 @@ O erro `POST https://...supabase.co/functions/v1/ai-proxy 500` ocorre porque as 
    # Defina as secrets
    supabase secrets set GEMINI_API_KEY="sua_chave_aqui"
    supabase secrets set GROQ_API_KEY="sua_chave_aqui"
-   supabase secrets set ALLOWED_ORIGIN="https://assistente-financeiro-assistente-financas.vercel.app,https://assistente-financeiro-blue.vercel.app"  # localhost incluso nas functions
+   supabase secrets set ALLOWED_ORIGIN="https://inteligentefinancas.vercel.app"  # localhost e *.vercel.app já inclusos nas functions
    ```
 
 3. **Redeploy a edge function:**
