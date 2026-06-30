@@ -42,10 +42,13 @@ export function useFinances() {
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year, setYear] = useState(now.getFullYear())
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (options = {}) => {
+    const silent = options.silent === true
     try {
-      setLoading(true)
-      setError(null)
+      if (!silent) {
+        setLoading(true)
+        setError(null)
+      }
       const [p, t, s, c, r, w, inst, recent] = await Promise.all([
         getProfile(),
         getTransactions({ month, year }),
@@ -65,9 +68,10 @@ export function useFinances() {
       setActiveInstallments(inst)
       setRecentTransactions(recent)
     } catch (err) {
-      setError(err.message)
+      if (!silent) setError(err.message)
+      else console.error('loadAll silent error', err)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [month, year])
 
@@ -82,7 +86,7 @@ export function useFinances() {
     const unsubscribe = subscribeToChanges(() => {
       if (!mounted) return
       // Protege contra atualizações depois de desmontar
-      loadAll().catch(err => console.error('loadAll error', err))
+      loadAll({ silent: true }).catch(err => console.error('loadAll error', err))
     })
 
     return () => { mounted = false; unsubscribe() }
@@ -112,44 +116,44 @@ export function useFinances() {
 
   const handleAddTransaction = async (data) => {
     const tx = await addTransaction(data)
-    await loadAll() // Recarrega resumo
+    await loadAll({ silent: true })
     return tx
   }
 
   const handleUpdateTransaction = async (id, data) => {
     const tx = await updateTransaction(id, data)
     setTransactions(prev => prev.map(t => t.id === id ? tx : t))
-    await loadAll()
+    await loadAll({ silent: true })
     return tx
   }
 
   const handleDeleteTransaction = async (id) => {
     await deleteTransaction(id)
     setTransactions(prev => prev.filter(t => t.id !== id))
-    await loadAll()
+    await loadAll({ silent: true })
   }
 
   const handleDepositToSavings = async (amount, description) => {
     const tx = await depositToSavings(amount, description)
-    await loadAll()
+    await loadAll({ silent: true })
     return tx
   }
 
   const handleWithdrawFromSavings = async (amount, description) => {
     const result = await withdrawFromSavings(amount, description)
-    await loadAll()
+    await loadAll({ silent: true })
     return result
   }
 
   const handleTransferInvestmentToIncome = async (amount, description) => {
     const tx = await transferInvestmentToIncome(amount, description)
-    await loadAll()
+    await loadAll({ silent: true })
     return tx
   }
 
   const handleDeleteMonthIncome = async () => {
     const count = await deleteMonthIncome(month, year)
-    await loadAll()
+    await loadAll({ silent: true })
     return count
   }
 
@@ -172,7 +176,7 @@ export function useFinances() {
 
   const handleAddPurchase = async (data) => {
     const result = await addPurchase(data)
-    await loadAll()
+    await loadAll({ silent: true })
     return result
   }
 
@@ -184,7 +188,7 @@ export function useFinances() {
       credit_card_balance: Number(result.profile.credit_card_balance) || 0,
       credit_card_invoice_paid_at: result.profile.credit_card_invoice_paid_at ?? null,
     }))
-    await loadAll()
+    await loadAll({ silent: true })
     return result
   }
 
@@ -231,7 +235,7 @@ export function useFinances() {
     year,
     setMonth,
     setYear,
-    refresh: loadAll,
+    refresh: (options = {}) => loadAll({ silent: true, ...options }),
     updateBalance: handleUpdateBalance,
     updateCreditCard: handleUpdateCreditCard,
     addTransaction: handleAddTransaction,

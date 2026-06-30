@@ -300,7 +300,7 @@ function WalletsPanel({ wallets, onAdd, onUpdate, onDelete }) {
 export default function Dashboard() {
   const {
     profile, summary, wallets, walletsIncludedTotal, projectedCreditCardInvoice, availableCreditLimit, loading, error,
-    month, year, setMonth, setYear,
+    month, year, setMonth, setYear, refresh,
     updateBalance, updateCreditCard, addTransaction, addPurchase: savePurchase, payCreditCardInvoice,
     depositToSavings, withdrawFromSavings, transferInvestmentToIncome, deleteMonthIncome,
     addWallet, updateWallet, deleteWallet,
@@ -488,7 +488,7 @@ export default function Dashboard() {
   if (error) return (
     <div className="p-8 text-center">
       <p className="text-red-400 mb-4">Erro ao carregar: {error}</p>
-      <Button onClick={() => window.location.reload()} variant="secondary">Tentar novamente</Button>
+      <Button onClick={() => refresh({ silent: false })} variant="secondary">Tentar novamente</Button>
     </div>
   )
 
