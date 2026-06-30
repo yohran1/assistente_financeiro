@@ -207,9 +207,15 @@ export function ChatWidget() {
     e.target.style.height = Math.min(e.target.scrollHeight, 112) + 'px'
   }
 
-  const mobilePanelStyle = viewport.height
+  const mobilePanelAboveNav = {
+    bottom: 'calc(var(--bottom-nav-height) + var(--safe-bottom))',
+    height: 'min(70dvh, calc(100dvh - var(--safe-top) - var(--bottom-nav-height) - var(--safe-bottom) - 0.5rem))',
+    maxHeight: 'calc(100dvh - var(--safe-top) - var(--bottom-nav-height) - var(--safe-bottom) - 0.5rem)',
+  }
+
+  const mobilePanelStyle = viewport.keyboardOpen && viewport.height != null
     ? { bottom: viewport.bottom, height: viewport.height, maxHeight: '100dvh' }
-    : { bottom: 0, height: 'min(85dvh, calc(100dvh - env(safe-area-inset-top, 0px)))' }
+    : mobilePanelAboveNav
 
   const widget = (
     <>
@@ -290,7 +296,7 @@ export function ChatWidget() {
 
           <div
             className="p-3 border-t border-white/[0.06] flex-shrink-0 bg-[#0f0f1a]"
-            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+            style={isMobile ? undefined : { paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
           >
             <div className="flex gap-2 items-end">
               <textarea
