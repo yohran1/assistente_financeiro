@@ -5,14 +5,6 @@ export const LOCAL_DEV_ORIGINS = [
   "http://127.0.0.1:3001",
 ]
 
-/** Host de produção Vercel (+ domínio customizado opcional). */
-export const PRODUCTION_APP_HOSTS = [
-  "assistente-financeiro-blue.vercel.app",
-  "assistente-financeiro-assistente-financas.vercel.app",
-  "assistente-financeiro-blue.app",
-  "www.assistente-financeiro-blue.app",
-]
-
 function parseAllowedOrigins(): string[] {
   const raw = (Deno.env.get("ALLOWED_ORIGIN") || "").trim()
   if (raw === "*") return ["*"]
@@ -30,22 +22,12 @@ function isVercelAppOrigin(origin: string): boolean {
   }
 }
 
-function isProductionAppOrigin(origin: string): boolean {
-  try {
-    const { protocol, hostname } = new URL(origin)
-    return protocol === "https:" && PRODUCTION_APP_HOSTS.includes(hostname)
-  } catch {
-    return false
-  }
-}
-
 export function resolveCorsOrigin(requestOrigin?: string): string {
   const allowed = parseAllowedOrigins()
   if (allowed.includes("*")) return "*"
   if (requestOrigin) {
     if (allowed.includes(requestOrigin)) return requestOrigin
     if (isVercelAppOrigin(requestOrigin)) return requestOrigin
-    if (isProductionAppOrigin(requestOrigin)) return requestOrigin
   }
   const productionOrigin = allowed.find((o) => !LOCAL_DEV_ORIGINS.includes(o))
   return productionOrigin || allowed[0] || "*"
