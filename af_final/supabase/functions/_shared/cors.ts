@@ -7,8 +7,8 @@ export const LOCAL_DEV_ORIGINS = [
 
 /** Domínio de produção customizado (Vercel). */
 export const PRODUCTION_APP_HOSTS = [
-  "assistente-financeiro.app",
-  "www.assistente-financeiro.app",
+  "assistente-financeiro-blue.app",
+  "www.assistente-financeiro-blue.app",
 ]
 
 function parseAllowedOrigins(): string[] {
