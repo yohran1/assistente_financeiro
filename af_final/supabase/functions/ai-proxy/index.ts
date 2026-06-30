@@ -24,11 +24,25 @@ function parseAllowedOrigins(): string[] {
   return Array.from(new Set([...LOCAL_DEV_ORIGINS, ...fromEnv]))
 }
 
+/** Preview deploys Vercel (*.vercel.app) — permitidos sem listar cada URL. */
+function isVercelAppOrigin(origin: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(origin)
+    return protocol === "https:" && hostname.endsWith(".vercel.app")
+  } catch {
+    return false
+  }
+}
+
 function resolveCorsOrigin(requestOrigin?: string): string {
   const allowed = parseAllowedOrigins()
   if (allowed.includes("*")) return "*"
-  if (requestOrigin && allowed.includes(requestOrigin)) return requestOrigin
-  return allowed[0] || "*"
+  if (requestOrigin) {
+    if (allowed.includes(requestOrigin)) return requestOrigin
+    if (isVercelAppOrigin(requestOrigin)) return requestOrigin
+  }
+  const productionOrigin = allowed.find((o) => !LOCAL_DEV_ORIGINS.includes(o))
+  return productionOrigin || allowed[0] || "*"
 }
 
 function buildCorsHeaders(origin?: string) {
