@@ -48,12 +48,12 @@ Após o deploy, adicione as variáveis de ambiente:
 Pegue o Project ID e Org ID e adicione como secrets no GitHub.
 
 Atualize o Site URL no Supabase:
-- app.supabase.com → Authentication → Settings → Site URL → `https://www.assistente-financeiro-blue.app`
-- Redirect URLs: `https://www.assistente-financeiro-blue.app/**`, `https://assistente-financeiro-blue.app/**`
+- app.supabase.com → Authentication → Settings → Site URL → `https://assistente-financeiro-assistente-financas.vercel.app`
+- Redirect URLs: `https://assistente-financeiro-assistente-financas.vercel.app/**`, `https://assistente-financeiro-blue.vercel.app/**`, `http://localhost:3000/**`, `http://127.0.0.1:3000/**`
 
 Atualize ALLOWED_ORIGIN na Edge Function:
 ```bash
-supabase secrets set ALLOWED_ORIGIN=https://www.assistente-financeiro-blue.app,https://assistente-financeiro-blue.app
+supabase secrets set ALLOWED_ORIGIN=https://assistente-financeiro-assistente-financas.vercel.app,https://assistente-financeiro-blue.vercel.app
 supabase functions deploy ai-proxy
 supabase functions deploy pluggy
 supabase functions deploy delete-account

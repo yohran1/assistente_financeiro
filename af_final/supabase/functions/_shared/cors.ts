@@ -5,8 +5,10 @@ export const LOCAL_DEV_ORIGINS = [
   "http://127.0.0.1:3001",
 ]
 
-/** Domínio de produção customizado (Vercel). */
+/** Host de produção Vercel (+ domínio customizado opcional). */
 export const PRODUCTION_APP_HOSTS = [
+  "assistente-financeiro-blue.vercel.app",
+  "assistente-financeiro-assistente-financas.vercel.app",
   "assistente-financeiro-blue.app",
   "www.assistente-financeiro-blue.app",
 ]
