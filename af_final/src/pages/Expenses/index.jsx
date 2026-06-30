@@ -226,12 +226,12 @@ export default function Expenses() {
                       ${panelOpen ? 'border-orange-500/20 bg-white/[0.04]' : 'border-white/[0.06]'}
                     `}
                   >
-                    <div className="flex items-center gap-3 sm:gap-4 px-3.5 py-3 sm:px-4 sm:py-3.5">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-lg flex-shrink-0 ${t.bg} ${t.color}`}>
+                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 px-3.5 py-3 sm:px-4 sm:py-3.5">
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-lg flex-shrink-0 mt-0.5 sm:mt-0 ${t.bg} ${t.color}`}>
                         {t.label}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{tx.description}</p>
+                        <p className="text-sm font-medium text-white line-clamp-2 sm:truncate">{tx.description}</p>
                         <p className="text-xs text-white/30 mt-0.5 flex items-center gap-1 flex-wrap">
                           <Calendar size={10} aria-hidden="true" />
                           {dateStr}{tx.categories?.name && ` · ${tx.categories.name}`}
@@ -240,8 +240,11 @@ export default function Expenses() {
                           )}
                           {tx.store && ` · ${tx.store}`}
                         </p>
+                        <p className={`sm:hidden text-sm font-semibold mono-number mt-1.5 ${t.color}`}>
+                          {tx.type === 'expense' ? '-' : '+'}{fmt(tx.amount)}
+                        </p>
                       </div>
-                      <span className={`text-sm font-semibold mono-number flex-shrink-0 ${t.color}`}>
+                      <span className={`hidden sm:block text-sm font-semibold mono-number flex-shrink-0 ${t.color}`}>
                         {tx.type === 'expense' ? '-' : '+'}{fmt(tx.amount)}
                       </span>
                       {isInstallment && (
@@ -251,7 +254,7 @@ export default function Expenses() {
                           description={tx.description}
                         />
                       )}
-                      <div className="flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-0.5 flex-shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => openEdit(tx)}
                           aria-label={`Editar ${tx.description}`}
@@ -289,7 +292,7 @@ export default function Expenses() {
             </div>
           ) : recurringExpenses.map(r => (
             <div key={r.id} className="
-              flex items-center gap-3 sm:gap-4
+              flex items-start sm:items-center gap-3 sm:gap-4
               bg-white/[0.03] border border-white/[0.06] rounded-2xl
               px-3.5 py-3 sm:px-4 sm:py-3.5
               hover:bg-white/[0.05] transition-all group
@@ -298,13 +301,16 @@ export default function Expenses() {
                 <RefreshCw size={15} className="text-orange-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{r.description}</p>
+                <p className="text-sm font-medium text-white line-clamp-2 sm:truncate">{r.description}</p>
                 <p className="text-xs text-white/30 mt-0.5">
                   Todo dia {r.day_of_month}{r.categories?.name && ` · ${r.categories.name}`}
                   {r.payment_source === 'credit_card' ? ' · Cartão' : ' · Conta'}
                 </p>
+                <p className="sm:hidden text-sm font-semibold text-red-400 mono-number mt-1.5">
+                  -{fmt(r.amount)}
+                </p>
               </div>
-              <span className="text-sm font-semibold text-red-400 mono-number flex-shrink-0">
+              <span className="hidden sm:block text-sm font-semibold text-red-400 mono-number flex-shrink-0">
                 -{fmt(r.amount)}
               </span>
               <button
