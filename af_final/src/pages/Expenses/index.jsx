@@ -139,7 +139,7 @@ export default function Expenses() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-5 bg-white/[0.03] rounded-2xl p-1 w-fit" role="tablist">
+      <div className="flex gap-1 mb-5 bg-white/[0.03] rounded-2xl p-1 w-full max-w-full overflow-x-auto" role="tablist">
         {[
           { key: 'transactions', label: 'Transações' },
           { key: 'installments', label: 'Parceladas' },
@@ -151,8 +151,8 @@ export default function Expenses() {
             aria-selected={activeTab === key}
             onClick={() => setActiveTab(key)}
             className={`
-              px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200
-              min-h-[36px] touch-press
+              px-3 sm:px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200
+              min-h-[44px] touch-press flex-shrink-0
               ${activeTab === key ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'}
             `}
           >

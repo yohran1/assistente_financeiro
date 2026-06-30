@@ -179,9 +179,11 @@ export function ChatWidget() {
           onClick={() => setOpen(true)}
           aria-label="Abrir assistente financeiro"
           className="
-            fixed bottom-24 right-4
+            fixed z-40
+            bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))]
+            right-4
             md:bottom-6 md:right-6
-            w-14 h-14 rounded-full
+            w-14 h-14 min-w-[44px] min-h-[44px] rounded-full
             bg-brand-600 hover:bg-brand-500
             shadow-xl shadow-brand-600/30
             flex items-center justify-center

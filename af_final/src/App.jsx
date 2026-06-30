@@ -16,7 +16,8 @@ import ForgotPassword from './pages/Auth/ForgotPassword'
 const Dashboard  = lazy(() => import('./pages/Dashboard'))
 const Expenses   = lazy(() => import('./pages/Expenses'))
 const Analytics  = lazy(() => import('./pages/Analytics'))
-const Profile    = lazy(() => import('./pages/Profile'))
+const Profile       = lazy(() => import('./pages/Profile'))
+const InstallMobile = lazy(() => import('./pages/InstallMobile'))
 
 // Loading placeholder
 const PageLoader = () => (
@@ -44,7 +45,9 @@ export default function App() {
             <Route path="/dashboard"  element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
             <Route path="/expenses"   element={<Suspense fallback={<PageLoader />}><Expenses /></Suspense>} />
             <Route path="/analytics"  element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
-            <Route path="/profile"    element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
+            <Route path="/profile"        element={<Suspense fallback={<PageLoader />}><Profile /></Suspense>} />
+            <Route path="/instalar"       element={<Suspense fallback={<PageLoader />}><InstallMobile /></Suspense>} />
+            <Route path="/install-mobile" element={<Navigate to="/instalar" replace />} />
           </Route>
 
           {/* Redirect raiz */}

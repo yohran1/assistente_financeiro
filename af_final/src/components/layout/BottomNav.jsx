@@ -3,13 +3,14 @@
  * Segue padrão iOS/Android com ícones + labels e indicador de rota ativa.
  */
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, CreditCard, TrendingUp, Settings } from 'lucide-react'
+import { LayoutDashboard, CreditCard, TrendingUp, Settings, Smartphone } from 'lucide-react'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Início'     },
   { to: '/expenses',  icon: CreditCard,      label: 'Gastos'     },
   { to: '/analytics', icon: TrendingUp,      label: 'Relatórios' },
   { to: '/profile',   icon: Settings,        label: 'Perfil'     },
+  { to: '/instalar',  icon: Smartphone,      label: 'Instalar'   },
 ]
 
 export function BottomNav() {
@@ -23,7 +24,7 @@ export function BottomNav() {
         backdrop-blur-xl -webkit-backdrop-filter
         bottom-nav-safe
         flex items-center justify-around
-        px-2 pt-2
+        px-1 pt-2
         md:hidden
       "
       style={{ paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom))' }}
@@ -34,21 +35,21 @@ export function BottomNav() {
           to={to}
           className={({ isActive }) => `
             flex flex-col items-center justify-center gap-0.5
-            flex-1 py-1 px-1 rounded-2xl
+            flex-1 py-1 px-0.5 rounded-2xl
             transition-all duration-200
-            min-w-0 touch-press
+            min-w-0 min-h-[44px] touch-press
             ${isActive ? 'text-brand-400' : 'text-white/40'}
           `}
         >
           {({ isActive }) => (
             <>
               <div className={`
-                p-1.5 rounded-xl transition-all duration-200
+                p-1.5 rounded-xl transition-all duration-200 min-w-[44px] min-h-[32px] flex items-center justify-center
                 ${isActive ? 'bg-brand-600/20' : ''}
               `}>
-                <Icon size={22} strokeWidth={isActive ? 2.2 : 1.8} />
+                <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
               </div>
-              <span className="text-[10px] font-medium leading-none tracking-tight">
+              <span className="text-[9px] sm:text-[10px] font-medium leading-none tracking-tight truncate max-w-full">
                 {label}
               </span>
             </>

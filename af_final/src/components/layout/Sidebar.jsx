@@ -5,7 +5,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, CreditCard, TrendingUp, Settings,
-  LogOut, ChevronLeft, ChevronRight, Wallet,
+  LogOut, ChevronLeft, ChevronRight, Wallet, Smartphone,
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut }  from '../../services/auth'
@@ -13,10 +13,11 @@ import { useAuth }  from '../../hooks/useAuth'
 import toast        from 'react-hot-toast'
 
 const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'  },
-  { to: '/expenses',  icon: CreditCard,      label: 'Gastos'     },
-  { to: '/analytics', icon: TrendingUp,      label: 'Relatórios' },
-  { to: '/profile',   icon: Settings,        label: 'Perfil'     },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'      },
+  { to: '/expenses',  icon: CreditCard,      label: 'Gastos'         },
+  { to: '/analytics', icon: TrendingUp,      label: 'Relatórios'     },
+  { to: '/profile',   icon: Settings,        label: 'Perfil'         },
+  { to: '/instalar',  icon: Smartphone,      label: 'Instalar Mobile' },
 ]
 
 export function Sidebar() {
