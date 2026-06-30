@@ -185,7 +185,7 @@ function StatCard({ label, value, positive, subtitle, actions = [] }) {
         <p className={`text-base font-semibold mono-number ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
           {fmt(value)}
         </p>
-        {subtitle && <p className="text-[10px] text-white/30 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="text-[10px] text-white/30 mt-0.5 capitalize">{subtitle}</p>}
       </div>
       {actions.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
@@ -589,7 +589,6 @@ export default function Dashboard() {
           label="Investimentos"
           value={investmentBalance}
           positive
-          subtitle={`Mês: ${fmt(summary?.totalInvestments || 0)}`}
           actions={[
             { label: 'Adicionar', onClick: () => openTxModal('investment') },
             { label: 'Incluir em receitas', onClick: () => { setQuickAmount(null); setQuickDesc(''); setTransferInvModal(true) } },
@@ -599,7 +598,6 @@ export default function Dashboard() {
           label="Poupança"
           value={savingsBalance}
           positive
-          subtitle={`Mês: ${fmt(summary?.totalSavings || 0)}`}
           actions={[
             { label: 'Retirar da poupança', onClick: () => { setQuickAmount(null); setQuickDesc(''); setSavingsModal('withdraw') } },
           ]}
