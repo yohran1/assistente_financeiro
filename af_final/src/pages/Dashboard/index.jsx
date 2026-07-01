@@ -13,6 +13,7 @@ import { TransactionModal }  from './TransactionModal'
 import { PurchaseModal }     from './PurchaseModal'
 import { getCreditCardBillingStatus } from '../../lib/creditCardBilling'
 import { formatPurchaseLabel, formatInstallmentInvoiceStatus } from '../../lib/balanceImpact'
+import { formatMonthYear, formatMonthTotalSubtitle, buildMonthSelectOptions } from '../../lib/monthUtils'
 import toast from 'react-hot-toast'
 
 const ExpensePieChart = lazy(() => import('../../components/charts/ExpensePieChart').then(m => ({ default: m.ExpensePieChart })))
@@ -333,7 +334,9 @@ export default function Dashboard() {
   const shownAccount = displayAccount ?? accountTotal
   const shownCard = displayCard ?? cardBalance
   const netBalance = shownAccount - shownCard
-  const monthName  = new Date(year, month - 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
+  const monthName = formatMonthYear(month, year)
+  const monthTotalSubtitle = formatMonthTotalSubtitle(month, year)
+  const monthOptions = buildMonthSelectOptions()
   const savingsBalance = Number(profile?.savings_balance) || 0
   const investmentBalance = Number(profile?.investment_balance) || 0
 
@@ -510,14 +513,9 @@ export default function Dashboard() {
             aria-label="Selecionar mês"
             className="w-auto min-w-[10.5rem] sm:min-w-[11.5rem]"
           >
-            {Array.from({ length: 12 }, (_, i) => {
-              const d = new Date(year, i)
-              return (
-                <option key={i} value={`${year}-${i+1}`}>
-                  {d.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
-                </option>
-              )
-            })}
+            {monthOptions.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
           </Select>
           <Button onClick={() => setAddPurchase(true)} size="md">
             <Plus size={15} aria-hidden="true" />
@@ -573,7 +571,7 @@ export default function Dashboard() {
           label="Receitas"
           value={summary?.totalIncome}
           positive
-          subtitle="Total do mês selecionado"
+          subtitle={monthTotalSubtitle}
           actions={[
             { label: 'Registrar receita', onClick: () => openTxModal('income') },
             { label: 'Limpar receitas do mês', onClick: () => setConfirmClearIncome(true), variant: 'danger' },
@@ -583,7 +581,7 @@ export default function Dashboard() {
           label="Gastos"
           value={summary?.totalExpenses}
           positive={false}
-          subtitle="Total do mês selecionado"
+          subtitle={monthTotalSubtitle}
         />
         <StatCard
           label="Investimentos"
