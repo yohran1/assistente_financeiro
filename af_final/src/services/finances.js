@@ -5,6 +5,7 @@ import {
   balanceImpactForRecurring,
 } from '../lib/balanceImpact'
 import { payCreditCardInvoicePlan } from '../lib/creditCardBilling'
+import { monthDateRange, isInstallmentDueInMonth } from '../lib/monthUtils'
 
 async function getCurrentUserId() {
   const { data: { session }, error } = await supabase.auth.getSession()
@@ -296,18 +297,79 @@ function buildTransactionInsert(userId, fields) {
   return row
 }
 
+async function fetchInstallmentTransactions({ withCategories = false } = {}) {
+  const fields = withCategories
+    ? `${TX_EXTENDED_FIELDS}, categories(name, color, icon)`
+    : TX_EXTENDED_FIELDS
+  let { data, error } = await supabase
+    .from('transactions')
+    .select(fields)
+    .eq('type', 'expense')
+    .eq('purchase_type', 'installment')
+
+  if (error && isMissingPurchaseColumnsError(error)) return []
+  if (error) throw error
+  return (data || []).map(normalizeTransaction)
+}
+
+async function queryTransactionsByDateRange({ start, end, purchaseType, withCategories = true, limit, offset }) {
+  const fields = withCategories
+    ? `${TX_EXTENDED_FIELDS}, categories(name, color, icon)`
+    : `${TX_BASE_FIELDS}, categories(name, color, icon)`
+
+  let query = supabase
+    .from('transactions')
+    .select(fields)
+    .gte('date', start)
+    .lte('date', end)
+    .order('date', { ascending: false })
+
+  if (purchaseType) query = query.eq('purchase_type', purchaseType)
+  if (limit != null) query = query.range(offset ?? 0, (offset ?? 0) + limit - 1)
+
+  let { data, error } = await query
+  if (error && isMissingPurchaseColumnsError(error)) {
+    let q2 = supabase
+      .from('transactions')
+      .select(`${TX_BASE_FIELDS}, categories(name, color, icon)`)
+      .gte('date', start)
+      .lte('date', end)
+      .order('date', { ascending: false })
+    if (purchaseType) q2 = q2.eq('purchase_type', purchaseType)
+    if (limit != null) q2 = q2.range(offset ?? 0, (offset ?? 0) + limit - 1)
+    ;({ data, error } = await q2)
+  }
+  if (error) throw error
+  return (data || []).map(normalizeTransaction)
+}
+
+function mergeMonthTransactions(ranged, installments, month, year) {
+  const rangedIds = new Set(ranged.map(t => t.id))
+  const extra = installments.filter(
+    t => !rangedIds.has(t.id) && isInstallmentDueInMonth(t, month, year),
+  )
+  return [...ranged, ...extra].sort((a, b) => b.date.localeCompare(a.date))
+}
+
 export async function getTransactions({ limit = 50, offset = 0, month, year, purchaseType } = {}) {
+  if (month && year) {
+    const { start, end } = monthDateRange(month, year)
+    const [ranged, installments] = await Promise.all([
+      queryTransactionsByDateRange({ start, end, purchaseType, limit: null }),
+      purchaseType && purchaseType !== 'installment'
+        ? Promise.resolve([])
+        : fetchInstallmentTransactions({ withCategories: true }),
+    ])
+    const merged = mergeMonthTransactions(ranged, installments, month, year)
+    return merged.slice(offset, offset + limit)
+  }
+
   let query = supabase
     .from('transactions')
     .select(`${TX_EXTENDED_FIELDS}, categories(name, color, icon)`)
     .order('date', { ascending: false })
     .range(offset, offset + limit - 1)
 
-  if (month && year) {
-    const start = `${year}-${String(month).padStart(2, '0')}-01`
-    const end = new Date(year, month, 0).toISOString().split('T')[0]
-    query = query.gte('date', start).lte('date', end)
-  }
   if (purchaseType) query = query.eq('purchase_type', purchaseType)
 
   let { data, error } = await query
@@ -317,11 +379,7 @@ export async function getTransactions({ limit = 50, offset = 0, month, year, pur
       .select(`${TX_BASE_FIELDS}, categories(name, color, icon)`)
       .order('date', { ascending: false })
       .range(offset, offset + limit - 1)
-    if (month && year) {
-      const start = `${year}-${String(month).padStart(2, '0')}-01`
-      const end = new Date(year, month, 0).toISOString().split('T')[0]
-      q2 = q2.gte('date', start).lte('date', end)
-    }
+    if (purchaseType) q2 = q2.eq('purchase_type', purchaseType)
     ;({ data, error } = await q2)
   }
   if (error) throw error
@@ -551,15 +609,18 @@ export async function addCategory({ name, color, icon }) {
 // ── Resumo financeiro ────────────────────────────────────────────────────────
 
 export async function getFinancialSummary(month, year) {
-  const start = `${year}-${String(month).padStart(2, '0')}-01`
-  const end = new Date(year, month, 0).toISOString().split('T')[0]
+  const { start, end } = monthDateRange(month, year)
 
-  const { data, error } = await supabase
-    .from('transactions')
-    .select(`${TX_EXTENDED_FIELDS}, categories(name, color)`)
-    .gte('date', start)
-    .lte('date', end)
+  const [rangedResult, installments] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select(`${TX_EXTENDED_FIELDS}, categories(name, color)`)
+      .gte('date', start)
+      .lte('date', end),
+    fetchInstallmentTransactions({ withCategories: true }),
+  ])
 
+  let { data, error } = rangedResult
   if (error && isMissingPurchaseColumnsError(error)) {
     const fallback = await supabase
       .from('transactions')
@@ -567,10 +628,18 @@ export async function getFinancialSummary(month, year) {
       .gte('date', start)
       .lte('date', end)
     if (fallback.error) throw fallback.error
-    return buildSummaryFromRows(fallback.data || [])
+    data = fallback.data
+    error = null
   }
   if (error) throw error
-  return buildSummaryFromRows(data || [])
+
+  const ranged = (data || []).map(normalizeTransaction)
+  const installmentRows = installments.map(tx => ({
+    ...tx,
+    categories: tx.categories ?? null,
+  }))
+  const rows = mergeMonthTransactions(ranged, installmentRows, month, year)
+  return buildSummaryFromRows(rows)
 }
 
 function expenseAmountForSummary(t) {
@@ -719,8 +788,7 @@ export async function transferInvestmentToIncome(amount, description = 'Resgate 
 }
 
 export async function deleteMonthIncome(month, year) {
-  const start = `${year}-${String(month).padStart(2, '0')}-01`
-  const end = new Date(year, month, 0).toISOString().split('T')[0]
+  const { start, end } = monthDateRange(month, year)
   const { data, error } = await supabase
     .from('transactions')
     .select(TX_EXTENDED_FIELDS)

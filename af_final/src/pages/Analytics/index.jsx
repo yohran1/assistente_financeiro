@@ -4,6 +4,7 @@ import { Card, CardHeader } from '../../components/ui/Card'
 import { Select }         from '../../components/ui/Select'
 import { TrendingUp, TrendingDown, Percent, PiggyBank, Calendar } from 'lucide-react'
 import { formatPurchaseLabel } from '../../lib/balanceImpact'
+import { formatMonthYear, buildMonthSelectOptions } from '../../lib/monthUtils'
 
 const ExpensePieChart = lazy(() => import('../../components/charts/ExpensePieChart').then(m => ({ default: m.ExpensePieChart })))
 const BalanceBarChart = lazy(() => import('../../components/charts/BalanceBarChart').then(m => ({ default: m.BalanceBarChart })))
@@ -40,7 +41,8 @@ export default function Analytics() {
     ? summary.totalIncome - summary.totalExpenses - summary.totalInvestments - summary.totalSavings
     : 0
 
-  const monthName = new Date(year, month - 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
+  const monthName = formatMonthYear(month, year)
+  const monthOptions = buildMonthSelectOptions()
 
   if (loading) return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-4 animate-pulse">
@@ -69,14 +71,9 @@ export default function Analytics() {
           aria-label="Selecionar mês"
           className="w-auto min-w-[10.5rem] sm:min-w-[11.5rem]"
         >
-          {Array.from({ length: 12 }, (_, i) => {
-            const d = new Date(year, i)
-            return (
-              <option key={i} value={`${year}-${i+1}`}>
-                {d.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
-              </option>
-            )
-          })}
+          {monthOptions.map(({ value, label }) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
         </Select>
       </div>
 
